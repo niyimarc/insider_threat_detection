@@ -1,0 +1,16 @@
+# datasets (kept outside this repo / not committed)
+data/
+*.csv
+*.tar.bz2
+
+# results and checkpoints
+results/checkpoints/*.pt
+results/checkpoints/*.pth
+
+# python
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# environment
+.env
