@@ -20,3 +20,26 @@ def extract_file_type(file_df):
     header = file_df["content"].str.split(" ").str[0]
     file_df["file_type"] = header.map(FILE_TYPE_BY_HEADER).fillna("other")
     return file_df
+
+def extract_file_extension(file_df):
+    """
+    Adds `file_extension`: the filename's extension, lower-cased. r4.2's
+    file.csv stores only a bare filename with no directory structure, so
+    this is the only path-like information actually available.
+    """
+    file_df = file_df.copy()
+    file_df["file_extension"] = file_df["filename"].str.split(".").str[-1].str.lower()
+    return file_df
+
+
+def add_time_since_previous_event(file_df):
+    """
+    Adds `seconds_since_last_event`: time elapsed since this same user's
+    previous file-copy event, in seconds. A user's very first event has
+    no previous event to compare against, so it gets 0.
+    """
+    file_df = file_df.sort_values(["user", "date"]).reset_index(drop=True)
+    file_df["seconds_since_last_event"] = (
+        file_df.groupby("user")["date"].diff().dt.total_seconds().fillna(0)
+    )
+    return file_df
