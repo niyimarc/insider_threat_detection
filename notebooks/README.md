@@ -108,3 +108,13 @@ Finding, broken down by scenario:
   it is largely invisible to file.csv — any file.csv activity these users
   do have is unrelated background behaviour, not evidence of the scripted
   incident.
+
+## 11_check_logon_patterns.py
+Checks whether logon.csv actually shows the "repeated Logon with no
+intervening Logoff" pattern implied by its own readme (screen locks
+are not recorded, only unlocks are, and unlocks are logged as another
+Logon). Finding: confirmed — 103,052 occurrences across 433 of the
+roughly 1,000 users. This directly justifies the session-building logic
+in src/preprocessing/sessionize.py, which tracks open/closed session
+state per user rather than naively pairing each Logon with the next
+Logoff chronologically.
