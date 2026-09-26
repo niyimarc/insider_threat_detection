@@ -7,3 +7,4 @@ seaborn
 jupyter
 pyarrow
 tensorboard
+pytest
