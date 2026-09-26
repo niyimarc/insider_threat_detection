@@ -1,0 +1,60 @@
+import pandas as pd
+from src.preprocessing.sessionize import build_all_sessions
+
+
+def test_repeated_logons_collapse_into_one_session():
+    logon_df = pd.DataFrame({
+        "user": ["AAA0001", "AAA0001", "AAA0001"],
+        "date": pd.to_datetime([
+            "2010-01-04 07:46:00",
+            "2010-01-04 12:59:09",  # screen-unlock Logon, no Logoff before it
+            "2010-01-04 17:03:00",
+        ]),
+        "activity": ["Logon", "Logon", "Logoff"],
+    })
+
+    sessions = build_all_sessions(logon_df)
+
+    assert len(sessions) == 1
+    assert sessions.iloc[0]["start"] == pd.Timestamp("2010-01-04 07:46:00")
+    assert sessions.iloc[0]["end"] == pd.Timestamp("2010-01-04 17:03:00")
+
+
+def test_two_separate_sessions_stay_separate():
+    logon_df = pd.DataFrame({
+        "user": ["AAA0001"] * 4,
+        "date": pd.to_datetime([
+            "2010-01-04 08:00:00", "2010-01-04 12:00:00",
+            "2010-01-04 13:00:00", "2010-01-04 17:00:00",
+        ]),
+        "activity": ["Logon", "Logoff", "Logon", "Logoff"],
+    })
+
+    sessions = build_all_sessions(logon_df)
+    assert len(sessions) == 2
+
+
+def test_stray_logoff_with_no_open_session_is_ignored():
+    logon_df = pd.DataFrame({
+        "user": ["AAA0001", "AAA0001"],
+        "date": pd.to_datetime(["2010-01-04 09:00:00", "2010-01-04 17:00:00"]),
+        "activity": ["Logoff", "Logoff"],  # first one has nothing to close
+    })
+
+    sessions = build_all_sessions(logon_df)
+    assert len(sessions) == 0
+
+
+def test_sessions_do_not_mix_across_users():
+    logon_df = pd.DataFrame({
+        "user": ["AAA0001", "BBB0002", "AAA0001", "BBB0002"],
+        "date": pd.to_datetime([
+            "2010-01-04 08:00:00", "2010-01-04 09:00:00",
+            "2010-01-04 17:00:00", "2010-01-04 18:00:00",
+        ]),
+        "activity": ["Logon", "Logon", "Logoff", "Logoff"],
+    })
+
+    sessions = build_all_sessions(logon_df)
+    assert len(sessions) == 2
+    assert set(sessions["user"]) == {"AAA0001", "BBB0002"}
