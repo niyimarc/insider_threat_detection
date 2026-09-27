@@ -118,3 +118,13 @@ roughly 1,000 users. This directly justifies the session-building logic
 in src/preprocessing/sessionize.py, which tracks open/closed session
 state per user rather than naively pairing each Logon with the next
 Logoff chronologically.
+
+## 12_verify_split_on_real_data.py
+Confirms the train/validation/test split behaves correctly on the real,
+full-scale data (445,581 events, 264 distinct users), not just on small
+synthetic test cases. Finding: user counts match the 70/15/15 design
+exactly (136/29/99, with the 30 remaining benign users and all 69
+malicious users combined into test), and no user's events are split
+across more than one group. The uneven event-count totals seen in the
+full pipeline run are fully explained by natural per-user activity
+variance, not a flaw in the split logic.
