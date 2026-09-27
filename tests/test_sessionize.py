@@ -1,5 +1,8 @@
 import pandas as pd
-from src.preprocessing.sessionize import build_all_sessions
+from src.preprocessing.sessionize import (
+    assign_sessions_to_file_events, 
+    build_all_sessions
+    )
 
 
 def test_repeated_logons_collapse_into_one_session():
@@ -58,3 +61,41 @@ def test_sessions_do_not_mix_across_users():
     sessions = build_all_sessions(logon_df)
     assert len(sessions) == 2
     assert set(sessions["user"]) == {"AAA0001", "BBB0002"}
+
+def test_assign_sessions_matches_event_inside_window():
+    sessions_df = pd.DataFrame({
+        "user": ["AAA0001"],
+        "start": pd.to_datetime(["2010-01-04 08:00:00"]),
+        "end": pd.to_datetime(["2010-01-04 17:00:00"]),
+    })
+    file_df = pd.DataFrame({
+        "user": ["AAA0001"],
+        "date": pd.to_datetime(["2010-01-04 12:00:00"]),
+    })
+
+    result = assign_sessions_to_file_events(file_df, sessions_df)
+
+    assert result.iloc[0]["session_start"] == pd.Timestamp("2010-01-04 08:00:00")
+    assert result.iloc[0]["session_end"] == pd.Timestamp("2010-01-04 17:00:00")
+
+
+def test_assign_sessions_falls_back_for_event_between_sessions():
+    sessions_df = pd.DataFrame({
+        "user": ["AAA0001", "AAA0001"],
+        "start": pd.to_datetime(["2010-01-04 08:00:00", "2010-01-05 08:00:00"]),
+        "end": pd.to_datetime(["2010-01-04 17:00:00", "2010-01-05 17:00:00"]),
+    })
+    file_df = pd.DataFrame({
+        "user": ["AAA0001"],
+        "date": pd.to_datetime(["2010-01-04 20:00:00"]),  # after day 1's
+                                                            # session ended,
+                                                            # before day 2's
+                                                            # session started
+    })
+
+    result = assign_sessions_to_file_events(file_df, sessions_df)
+
+    # Should fall back to its own singleton session, not get wrongly
+    # attached to day 1's already-closed session.
+    assert result.iloc[0]["session_start"] == pd.Timestamp("2010-01-04 20:00:00")
+    assert result.iloc[0]["session_end"] == pd.Timestamp("2010-01-04 20:00:00")

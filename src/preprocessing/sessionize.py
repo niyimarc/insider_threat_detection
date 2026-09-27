@@ -36,3 +36,34 @@ def build_all_sessions(logon_df):
             all_sessions.append({"user": user, "start": start, "end": end})
 
     return pd.DataFrame(all_sessions)
+
+def assign_sessions_to_file_events(file_df, sessions_df):
+    """
+    Assigns each file event to the session (start, end) it falls inside,
+    for that same user. A file event that doesn't fall inside any known
+    session becomes its own singleton session (start = end = its own
+    timestamp), so no event is ever silently dropped.
+    """
+    file_df = file_df.sort_values(["user", "date"]).reset_index(drop=True)
+    sessions_df = sessions_df.sort_values(["user", "start"]).reset_index(drop=True)
+
+    merged = pd.merge_asof(
+        file_df,
+        sessions_df.rename(columns={"start": "session_start", "end": "session_end"}),
+        left_on="date",
+        right_on="session_start",
+        by="user",
+        direction="backward",
+    )
+
+    # merge_asof only guarantees the event is AFTER session_start — we
+    # still need to check it's also BEFORE session_end, otherwise it
+    # might have matched a session that had already closed.
+    valid = merged["session_end"].notna() & (merged["date"] <= merged["session_end"])
+
+    # Fallback: no valid enclosing session — treat this event as its
+    # own singleton session.
+    merged.loc[~valid, "session_start"] = merged.loc[~valid, "date"]
+    merged.loc[~valid, "session_end"] = merged.loc[~valid, "date"]
+
+    return merged
