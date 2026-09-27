@@ -44,8 +44,8 @@ def assign_sessions_to_file_events(file_df, sessions_df):
     session becomes its own singleton session (start = end = its own
     timestamp), so no event is ever silently dropped.
     """
-    file_df = file_df.sort_values(["user", "date"]).reset_index(drop=True)
-    sessions_df = sessions_df.sort_values(["user", "start"]).reset_index(drop=True)
+    file_df = file_df.sort_values("date").reset_index(drop=True)
+    sessions_df = sessions_df.sort_values("start").reset_index(drop=True)
 
     merged = pd.merge_asof(
         file_df,

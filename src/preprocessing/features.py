@@ -56,10 +56,10 @@ def add_device_session_features(file_df, device_df):
     the device log is missing an earlier connect) is treated as the
     start of its own connection: 0 seconds since connect, position 0.
     """
-    file_df = file_df.sort_values(["user", "pc", "date"]).reset_index(drop=True)
+    file_df = file_df.sort_values("date").reset_index(drop=True)
 
     connects = device_df[device_df["activity"] == "Connect"].copy()
-    connects = connects.sort_values(["user", "pc", "date"]).reset_index(drop=True)
+    connects = connects.sort_values("date").reset_index(drop=True)
     connects = connects.rename(columns={"date": "connect_time"})
 
     merged = pd.merge_asof(
