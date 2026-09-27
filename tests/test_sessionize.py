@@ -1,7 +1,8 @@
 import pandas as pd
 from src.preprocessing.sessionize import (
     assign_sessions_to_file_events, 
-    build_all_sessions
+    build_all_sessions,
+    label_sessions
     )
 
 
@@ -99,3 +100,38 @@ def test_assign_sessions_falls_back_for_event_between_sessions():
     # attached to day 1's already-closed session.
     assert result.iloc[0]["session_start"] == pd.Timestamp("2010-01-04 20:00:00")
     assert result.iloc[0]["session_end"] == pd.Timestamp("2010-01-04 20:00:00")
+
+def test_label_sessions_marks_whole_session_malicious():
+    file_events = pd.DataFrame({
+        "user": ["AAA0001", "AAA0001", "AAA0001"],
+        "session_start": pd.to_datetime(["2010-01-04 08:00:00"] * 3),
+        "session_end": pd.to_datetime(["2010-01-04 17:00:00"] * 3),
+        "is_malicious": [False, True, False],
+    })
+
+    result = label_sessions(file_events)
+    assert list(result["session_is_malicious"]) == [True, True, True]
+
+
+def test_label_sessions_leaves_benign_sessions_alone():
+    file_events = pd.DataFrame({
+        "user": ["AAA0001", "AAA0001"],
+        "session_start": pd.to_datetime(["2010-01-04 08:00:00"] * 2),
+        "session_end": pd.to_datetime(["2010-01-04 17:00:00"] * 2),
+        "is_malicious": [False, False],
+    })
+
+    result = label_sessions(file_events)
+    assert list(result["session_is_malicious"]) == [False, False]
+
+
+def test_label_sessions_does_not_mix_different_sessions():
+    file_events = pd.DataFrame({
+        "user": ["AAA0001", "AAA0001"],
+        "session_start": pd.to_datetime(["2010-01-04 08:00:00", "2010-01-05 08:00:00"]),
+        "session_end": pd.to_datetime(["2010-01-04 17:00:00", "2010-01-05 17:00:00"]),
+        "is_malicious": [True, False],
+    })
+
+    result = label_sessions(file_events)
+    assert list(result["session_is_malicious"]) == [True, False]

@@ -67,3 +67,16 @@ def assign_sessions_to_file_events(file_df, sessions_df):
     merged.loc[~valid, "session_end"] = merged.loc[~valid, "date"]
 
     return merged
+
+def label_sessions(file_events_with_sessions):
+    """
+    Adds `session_is_malicious`: True for every event belonging to a
+    session that contains at least one malicious-labelled event.
+    """
+    file_events_with_sessions = file_events_with_sessions.copy()
+    file_events_with_sessions["session_is_malicious"] = (
+        file_events_with_sessions
+        .groupby(["user", "session_start", "session_end"])["is_malicious"]
+        .transform("any")
+    )
+    return file_events_with_sessions
