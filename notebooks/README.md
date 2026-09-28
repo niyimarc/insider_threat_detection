@@ -128,3 +128,17 @@ malicious users combined into test), and no user's events are split
 across more than one group. The uneven event-count totals seen in the
 full pipeline run are fully explained by natural per-user activity
 variance, not a flaw in the split logic.
+
+## 13_verify_dataset_on_real_data.py
+Smoke-tests `src/training/dataset.py` (SessionDataset, collate_sessions)
+and `src/training/vocab.py` against the real processed parquet, not just
+the hand-built toy DataFrames used in the unit tests. Builds the
+file_type/file_extension vocabularies from the train split only, then
+reuses them for validation/test, and pulls one real batch through a
+DataLoader. Findings: 41,948/7,852/14,171 train/validation/test sessions,
+7 entries in each vocab (6 real categories + the reserved `<unknown>`
+slot), session lengths ranging 1-35 events. Train and validation both
+show a 0.0000 malicious rate — every malicious session lands in test, by
+design of `split_users` — confirming the model will train on benign
+sessions only and must be evaluated as an anomaly detector rather than a
+standard supervised classifier. No NaNs in the collated numeric features.
