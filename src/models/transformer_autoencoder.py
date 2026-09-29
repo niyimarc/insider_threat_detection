@@ -30,10 +30,8 @@ by one channel at the expense of the other.
 """
 
 import math
-
 import torch
 import torch.nn as nn
-
 from src.training.dataset import NUMERIC_FEATURE_COLUMNS
 
 # Index of each numeric column within the "numeric" tensor produced by
