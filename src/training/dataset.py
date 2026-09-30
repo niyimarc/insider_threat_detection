@@ -1,8 +1,8 @@
 import torch
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import Dataset
-
 from src.training.vocab import encode
+from src.training.scaling import apply_scaler
 
 SESSION_KEY_COLUMNS = ["user", "session_start", "session_end"]
 
@@ -19,7 +19,7 @@ NUMERIC_FEATURE_COLUMNS = [
 ]
 
 
-def session_to_tensors(session_df, file_type_vocab, file_extension_vocab):
+def session_to_tensors(session_df, file_type_vocab, file_extension_vocab, numeric_scaler=None):
     """
     Converts one session's rows (all events sharing the same user +
     session_start + session_end) into the tensors a model will consume:
@@ -35,13 +35,24 @@ def session_to_tensors(session_df, file_type_vocab, file_extension_vocab):
     the TRAINING split only, then be reused as-is here for every split
     (see src/training/vocab.py) — this function doesn't build vocabs
     itself, it only applies ones already built.
+
+    numeric_scaler, if given, must come from build_scaler() on the
+    TRAINING split only (see src/training/scaling.py), and standardizes
+    the continuous numeric columns before they go into the tensor.
+    Without this, raw values like seconds_since_device_connect (which
+    can be in the tens of thousands) dominate an MSE reconstruction loss
+    purely by scale, regardless of how meaningful the deviation actually
+    is — leaving it as None reproduces the old, unscaled behaviour.
     """
     session_df = session_df.sort_values("date")
 
-    numeric = torch.tensor(
-        session_df[NUMERIC_FEATURE_COLUMNS].astype(float).values,
-        dtype=torch.float32,
-    )
+    numeric_df = session_df[NUMERIC_FEATURE_COLUMNS].astype(float).copy()
+    if numeric_scaler is not None:
+        for column in NUMERIC_FEATURE_COLUMNS:
+            if column in numeric_scaler:
+                numeric_df[column] = apply_scaler(numeric_df[column], column, numeric_scaler)
+
+    numeric = torch.tensor(numeric_df.values, dtype=torch.float32)
 
     file_type = torch.tensor(
         encode(session_df["file_type"], file_type_vocab).values,
@@ -83,9 +94,10 @@ class SessionDataset(Dataset):
     every split's SessionDataset — see src/training/vocab.py.
     """
 
-    def __init__(self, events_df, file_type_vocab, file_extension_vocab):
+    def __init__(self, events_df, file_type_vocab, file_extension_vocab, numeric_scaler=None):
         self.file_type_vocab = file_type_vocab
         self.file_extension_vocab = file_extension_vocab
+        self.numeric_scaler = numeric_scaler
 
         # Sorting the group keys gives a fixed, reproducible sample order
         # (dict/groupby order isn't guaranteed to be stable across runs
@@ -102,7 +114,7 @@ class SessionDataset(Dataset):
     def __getitem__(self, index):
         session_df = self._sessions[index]
         return session_to_tensors(
-            session_df, self.file_type_vocab, self.file_extension_vocab
+            session_df, self.file_type_vocab, self.file_extension_vocab, self.numeric_scaler
         )
 
 

@@ -1,0 +1,9 @@
+{
+  "<unknown>": 0,
+  "exe": 1,
+  "jpg": 2,
+  "office_document": 3,
+  "other": 4,
+  "pdf": 5,
+  "zip": 6
+}

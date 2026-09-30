@@ -1,3 +1,4 @@
+import json
 UNKNOWN_TOKEN = "<unknown>"
 
 
@@ -31,3 +32,17 @@ def encode(series, vocab):
     """
     unknown_index = vocab[UNKNOWN_TOKEN]
     return series.map(lambda value: vocab.get(value, unknown_index))
+
+def save_vocab(vocab, path):
+    """Saves a vocab dict to disk as JSON, so it can be reloaded later
+    (e.g. by the evaluation pipeline) using the EXACT same
+    string->integer mapping built from the training split -- rebuilding
+    a vocab from scratch anywhere else would risk a different mapping."""
+    with open(path, "w") as f:
+        json.dump(vocab, f, indent=2)
+
+
+def load_vocab(path):
+    """Loads a vocab dict previously saved with save_vocab."""
+    with open(path) as f:
+        return json.load(f)
