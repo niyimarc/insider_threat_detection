@@ -11,7 +11,8 @@ import joblib
 from torch.utils.data import DataLoader
 
 from src.training.vocab import build_vocab, save_vocab
-from src.training.dataset import SessionDataset, collate_sessions
+from src.training.scaling import build_scaler, save_scaler
+from src.training.dataset import SessionDataset, collate_sessions, NUMERIC_FEATURE_COLUMNS
 from src.training.train import train_model
 from src.models.transformer_autoencoder import (
     DualChannelTransformerAutoencoder,
@@ -27,6 +28,10 @@ BATCH_SIZE = 32
 NUM_EPOCHS = 100
 PATIENCE = 5
 
+# outside_working_hours is already 0/1 -- no need to standardize it like
+# the genuinely continuous, wildly-scaled columns.
+SCALED_COLUMNS = [c for c in NUMERIC_FEATURE_COLUMNS if c != "outside_working_hours"]
+
 
 def main():
     os.makedirs(CHECKPOINT_DIR, exist_ok=True)
@@ -36,20 +41,20 @@ def main():
     train_df = events_df[events_df["split"] == "train"]
     val_df = events_df[events_df["split"] == "validation"]
 
-    # Per Chapter 3.4, training is benign-only by construction of the
-    # split (see notebooks/13_verify_dataset_on_real_data.py -- train
-    # and validation both showed a 0.0000 malicious rate already), so
-    # no additional filtering is needed here.
-
     print("Building vocabularies from TRAIN split only ...")
     file_type_vocab = build_vocab(train_df["file_type"])
     file_extension_vocab = build_vocab(train_df["file_extension"])
     save_vocab(file_type_vocab, os.path.join(CHECKPOINT_DIR, "file_type_vocab.json"))
     save_vocab(file_extension_vocab, os.path.join(CHECKPOINT_DIR, "file_extension_vocab.json"))
 
+    print("Building numeric feature scaler from TRAIN split only ...")
+    scaler = build_scaler(train_df, SCALED_COLUMNS)
+    save_scaler(scaler, os.path.join(CHECKPOINT_DIR, "numeric_scaler.json"))
+    print(scaler)
+
     print("Building datasets and loaders ...")
-    train_dataset = SessionDataset(train_df, file_type_vocab, file_extension_vocab)
-    val_dataset = SessionDataset(val_df, file_type_vocab, file_extension_vocab)
+    train_dataset = SessionDataset(train_df, file_type_vocab, file_extension_vocab, scaler)
+    val_dataset = SessionDataset(val_df, file_type_vocab, file_extension_vocab, scaler)
     train_loader = DataLoader(
         train_dataset, batch_size=BATCH_SIZE, shuffle=True, collate_fn=collate_sessions
     )

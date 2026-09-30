@@ -1,0 +1,14 @@
+{
+  "seconds_since_last_event": {
+    "mean": 17326.576330347107,
+    "std": 78232.11602437869
+  },
+  "seconds_since_device_connect": {
+    "mean": 717.9153845418905,
+    "std": 1003.2778902257193
+  },
+  "copies_since_device_connect": {
+    "mean": 3.140291149278496,
+    "std": 4.403802861721891
+  }
+}
