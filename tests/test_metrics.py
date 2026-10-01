@@ -1,10 +1,14 @@
 import numpy as np
-
+import pytest
 from src.evaluation.metrics import (
     percentile_calibrate,
     compute_threshold_metrics,
     compute_threshold_free_metrics,
     per_scenario_recall,
+    diagnose_length_bias,
+    build_length_buckets,
+    assign_length_bucket,
+    percentile_calibrate_by_length, 
 )
 
 
@@ -90,3 +94,43 @@ def test_per_scenario_recall_returns_none_for_scenario_with_no_malicious_session
 
     assert 2 not in result  # scenario 2 had zero malicious sessions in this data, so it's just absent
     assert result[1]["recall"] == 1.0
+
+def test_diagnose_length_bias_detects_strong_correlation():
+    lengths = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    scores = [10, 9, 8, 7, 6, 5, 4, 3, 2, 1]  # perfectly, strongly anti-correlated
+
+    result = diagnose_length_bias(scores, lengths)
+
+    assert result["correlation"] == pytest.approx(-1.0)
+
+
+def test_build_length_buckets_and_assign_are_consistent():
+    reference_lengths = list(range(1, 101))  # 1..100
+    edges = build_length_buckets(reference_lengths, num_buckets=4)
+
+    # every reference length should land in a valid bucket index
+    buckets = assign_length_bucket(reference_lengths, edges)
+    assert buckets.min() >= 0
+    assert buckets.max() <= 3
+
+
+def test_percentile_calibrate_by_length_compares_within_bucket_not_globally():
+    # Reference set dominated by long sessions (90) with few short ones
+    # (10) -- a pure length confound, no real behavioural difference
+    # encoded, just two different score "regimes" tied to length.
+    reference_lengths = [2] * 10 + [20] * 90
+    reference_scores = [1.0] * 10 + [10.0] * 90
+
+    # A short test session scoring 1.5 is a clear outlier among short
+    # reference sessions (which all scored exactly 1.0), but gets
+    # swamped globally by the 90 long sessions all scoring 10.0.
+    test_lengths = [2]
+    test_scores = [1.5]
+
+    naive = percentile_calibrate(test_scores, reference_scores)
+    bucketed = percentile_calibrate_by_length(
+        test_scores, test_lengths, reference_scores, reference_lengths, num_buckets=2
+    )
+
+    assert naive[0] <= 10  # globally, swamped by the 90 long sessions
+    assert bucketed[0] == 100  # within its own length bucket, a clear outlier

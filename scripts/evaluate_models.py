@@ -22,7 +22,8 @@ from src.models.lstm_autoencoder import LSTMAutoencoder, session_anomaly_score a
 from src.models.static_vector_baseline import build_session_vectors
 from src.evaluation.score import score_pytorch_model, score_static_model
 from src.evaluation.metrics import (
-    percentile_calibrate,
+    diagnose_length_bias,
+    percentile_calibrate_by_length,
     compute_threshold_metrics,
     compute_threshold_free_metrics,
     per_scenario_recall,
@@ -32,6 +33,7 @@ DATA_PATH = os.path.join(_PROJECT_ROOT, "data", "processed", "file_events_proces
 CHECKPOINT_DIR = os.path.join(_PROJECT_ROOT, "checkpoints")
 BATCH_SIZE = 64
 THRESHOLD_PERCENTILES = [90, 95, 99]
+LENGTH_BUCKETS = 5
 
 
 def get_session_users(events_df):
@@ -46,20 +48,32 @@ def get_session_users(events_df):
     ]
 
 
-def evaluate_pytorch_model(name, model, score_fn, val_loader, test_loader, test_users, scenario_map):
+def _report(name, val_scores, val_lengths, test_scores, test_lengths, test_labels, test_users, scenario_map):
     print(f"\n=== Evaluating {name} ===")
-    val_scores, _ = score_pytorch_model(model, val_loader, score_fn)
-    test_scores, test_labels = score_pytorch_model(model, test_loader, score_fn)
-    return _report(name, val_scores, test_scores, test_labels, test_users, scenario_map)
 
+    # Check the length confound BEFORE fixing it, on benign test sessions
+    # only (label == 0) -- mixing in malicious sessions here would
+    # conflate "correlated with length" with "correlated with being
+    # malicious", which is exactly the distinction we need to keep clean.
+    benign_mask = [label == 0 for label in test_labels]
+    benign_scores = [s for s, keep in zip(test_scores, benign_mask) if keep]
+    benign_lengths = [l for l, keep in zip(test_lengths, benign_mask) if keep]
+    bias = diagnose_length_bias(benign_scores, benign_lengths)
+    print(f"length-vs-score correlation (benign test sessions): {bias['correlation']:.3f} (p={bias['p_value']:.4f})")
 
-def _report(name, val_scores, test_scores, test_labels, test_users, scenario_map):
-    calibrated = percentile_calibrate(test_scores, val_scores)
+    calibrated = percentile_calibrate_by_length(
+        test_scores, test_lengths, val_scores, val_lengths, num_buckets=LENGTH_BUCKETS
+    )
 
     threshold_free = compute_threshold_free_metrics(test_labels, test_scores)
     print(f"AUROC = {threshold_free['auroc']:.4f} | AUPRC = {threshold_free['auprc']:.4f}")
 
-    result = {"model": name, "threshold_free": threshold_free, "thresholds": {}}
+    result = {
+        "model": name,
+        "length_bias_correlation": bias["correlation"],
+        "threshold_free": threshold_free,
+        "thresholds": {},
+    }
     for pct in THRESHOLD_PERCENTILES:
         metrics = compute_threshold_metrics(test_labels, calibrated, threshold_percentile=pct)
         predictions = metrics.pop("predictions")
@@ -96,6 +110,9 @@ def main():
     test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False, collate_fn=collate_sessions)
     print(f"{len(val_dataset)} validation sessions, {len(test_dataset)} test sessions")
 
+    val_lengths = [val_dataset[i]["numeric"].shape[0] for i in range(len(val_dataset))]
+    test_lengths = [test_dataset[i]["numeric"].shape[0] for i in range(len(test_dataset))]
+
     all_results = []
 
     # --- Proposed model ---
@@ -106,9 +123,11 @@ def main():
     transformer_model.load_state_dict(
         torch.load(os.path.join(CHECKPOINT_DIR, "transformer_autoencoder.pt"))
     )
-    all_results.append(evaluate_pytorch_model(
-        "proposed_transformer_autoencoder", transformer_model, transformer_score_fn,
-        val_loader, test_loader, test_dataset.session_users, scenario_map,
+    val_scores, _ = score_pytorch_model(transformer_model, val_loader, transformer_score_fn)
+    test_scores, test_labels = score_pytorch_model(transformer_model, test_loader, transformer_score_fn)
+    all_results.append(_report(
+        "proposed_transformer_autoencoder", val_scores, val_lengths,
+        test_scores, test_lengths, test_labels, test_dataset.session_users, scenario_map,
     ))
 
     # --- Baseline 1 ---
@@ -117,9 +136,11 @@ def main():
         file_extension_vocab_size=len(file_extension_vocab),
     )
     lstm_model.load_state_dict(torch.load(os.path.join(CHECKPOINT_DIR, "lstm_autoencoder.pt")))
-    all_results.append(evaluate_pytorch_model(
-        "baseline_lstm_autoencoder", lstm_model, lstm_score_fn,
-        val_loader, test_loader, test_dataset.session_users, scenario_map,
+    val_scores, _ = score_pytorch_model(lstm_model, val_loader, lstm_score_fn)
+    test_scores, test_labels = score_pytorch_model(lstm_model, test_loader, lstm_score_fn)
+    all_results.append(_report(
+        "baseline_lstm_autoencoder", val_scores, val_lengths,
+        test_scores, test_lengths, test_labels, test_dataset.session_users, scenario_map,
     ))
 
     # --- Baseline 2 ---
@@ -128,11 +149,15 @@ def main():
     test_vectors, test_labels = build_session_vectors(test_df, file_type_vocab, file_extension_vocab)
     test_users = get_session_users(test_df)
 
+    # session_to_vector always puts event count (session length) first.
+    static_val_lengths = val_vectors[:, 0].tolist()
+    static_test_lengths = test_vectors[:, 0].tolist()
+
     val_scores = score_static_model(static_detector, val_vectors)
     test_scores = score_static_model(static_detector, test_vectors)
     all_results.append(_report(
-        "baseline_static_vector_isolation_forest",
-        val_scores, test_scores, test_labels.tolist(), test_users, scenario_map,
+        "baseline_static_vector_isolation_forest", val_scores, static_val_lengths,
+        test_scores, static_test_lengths, test_labels.tolist(), test_users, scenario_map,
     ))
 
     results_path = os.path.join(CHECKPOINT_DIR, "evaluation_results.json")
