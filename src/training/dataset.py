@@ -108,6 +108,12 @@ class SessionDataset(Dataset):
             )
         ]
 
+        # Which user each session (in the same order as _sessions) belongs
+        # to -- needed by the evaluation pipeline to break results down by
+        # scenario (Chapter 3.7), since scenario is a property of the user,
+        # not something carried in the tensors themselves.
+        self.session_users = [session_df["user"].iloc[0] for session_df in self._sessions]
+
     def __len__(self):
         return len(self._sessions)
 
