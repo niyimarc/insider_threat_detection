@@ -26,9 +26,9 @@ def _toy_events_df():
         "seconds_since_device_connect": [10.0, 15.0, 20.0, 25.0, 30.0],
         "copies_since_device_connect": [0, 1, 0, 1, 2],
         "outside_working_hours": [False, False, True, True, True],
+        "user_session_volume_deviation": [1.0, 1.0, 1.0, 1.0, 1.0],
         "session_is_malicious": [False, False, True, True, True],
     })
-
 
 def test_session_to_vector_has_expected_length_and_event_count():
     events_df = _toy_events_df()
@@ -40,7 +40,7 @@ def test_session_to_vector_has_expected_length_and_event_count():
 
     # 1 (count) + 3 continuous features * 4 stats + 1 (outside_hours frac)
     # + len(file_type_vocab) + len(file_extension_vocab)
-    expected_length = 1 + 3 * 4 + 1 + len(file_type_vocab) + len(file_extension_vocab)
+    expected_length = 1 + 4 * 4 + 1 + len(file_type_vocab) + len(file_extension_vocab)
     assert vector.shape == (expected_length,)
     assert vector[0] == 2  # session_a has 2 events
 
@@ -52,7 +52,7 @@ def test_session_to_vector_outside_hours_fraction_is_correct():
     session_b = events_df[events_df["user"] == "BBB0002"]  # all 3 outside hours
 
     vector = session_to_vector(session_b, file_type_vocab, file_extension_vocab)
-    outside_hours_fraction_index = 1 + 3 * 4  # right after count + continuous stats
+    outside_hours_fraction_index = 1 + 4 * 4  # right after count + continuous stats
     assert vector[outside_hours_fraction_index] == 1.0
 
 

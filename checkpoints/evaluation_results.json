@@ -1,23 +1,23 @@
 [
   {
     "model": "proposed_transformer_autoencoder",
-    "length_bias_correlation": 0.1757914309558051,
+    "length_bias_correlation": -0.27167603819534064,
     "threshold_free": {
-      "auroc": 0.4745175542372977,
-      "auprc": 0.06209740749087185
+      "auroc": 0.49025429670066223,
+      "auprc": 0.06743758107528813
     },
     "thresholds": {
       "90": {
         "threshold_percentile": 90,
-        "precision": 0.041120381406436236,
-        "recall": 0.07128099173553719,
-        "f1": 0.05215419501133787,
-        "detection_rate": 0.07128099173553719,
-        "false_positive_rate": 0.12186624252063925,
-        "true_positives": 69,
-        "false_positives": 1609,
-        "false_negatives": 899,
-        "true_negatives": 11594,
+        "precision": 0.055449330783938815,
+        "recall": 0.08987603305785125,
+        "f1": 0.06858494284588096,
+        "detection_rate": 0.08987603305785125,
+        "false_positive_rate": 0.11224721654169507,
+        "true_positives": 87,
+        "false_positives": 1482,
+        "false_negatives": 881,
+        "true_negatives": 11721,
         "per_scenario_recall": {
           "1": {
             "total_malicious_sessions": 12,
@@ -26,27 +26,27 @@
           },
           "2": {
             "total_malicious_sessions": 929,
-            "detected": 59,
-            "recall": 0.06350914962325081
+            "detected": 78,
+            "recall": 0.08396124865446716
           },
           "3": {
             "total_malicious_sessions": 27,
-            "detected": 1,
-            "recall": 0.037037037037037035
+            "detected": 0,
+            "recall": 0.0
           }
         }
       },
       "95": {
         "threshold_percentile": 95,
-        "precision": 0.034482758620689655,
-        "recall": 0.027892561983471075,
-        "f1": 0.03083952027412907,
-        "detection_rate": 0.027892561983471075,
-        "false_positive_rate": 0.05725971370143149,
-        "true_positives": 27,
-        "false_positives": 756,
-        "false_negatives": 941,
-        "true_negatives": 12447,
+        "precision": 0.05198358413132695,
+        "recall": 0.03925619834710744,
+        "f1": 0.04473219540906415,
+        "detection_rate": 0.03925619834710744,
+        "false_positive_rate": 0.05248807089297887,
+        "true_positives": 38,
+        "false_positives": 693,
+        "false_negatives": 930,
+        "true_negatives": 12510,
         "per_scenario_recall": {
           "1": {
             "total_malicious_sessions": 12,
@@ -55,8 +55,8 @@
           },
           "2": {
             "total_malicious_sessions": 929,
-            "detected": 20,
-            "recall": 0.021528525296017224
+            "detected": 31,
+            "recall": 0.03336921420882669
           },
           "3": {
             "total_malicious_sessions": 27,
@@ -67,15 +67,15 @@
       },
       "99": {
         "threshold_percentile": 99,
-        "precision": 0.02877697841726619,
-        "recall": 0.004132231404958678,
-        "f1": 0.007226738934056007,
-        "detection_rate": 0.004132231404958678,
-        "false_positive_rate": 0.010224948875255624,
-        "true_positives": 4,
-        "false_positives": 135,
-        "false_negatives": 964,
-        "true_negatives": 13068,
+        "precision": 0.022900763358778626,
+        "recall": 0.0030991735537190084,
+        "f1": 0.0054595086442220195,
+        "detection_rate": 0.0030991735537190084,
+        "false_positive_rate": 0.00969476634098311,
+        "true_positives": 3,
+        "false_positives": 128,
+        "false_negatives": 965,
+        "true_negatives": 13075,
         "per_scenario_recall": {
           "1": {
             "total_malicious_sessions": 12,
@@ -84,8 +84,8 @@
           },
           "2": {
             "total_malicious_sessions": 929,
-            "detected": 2,
-            "recall": 0.002152852529601722
+            "detected": 1,
+            "recall": 0.001076426264800861
           },
           "3": {
             "total_malicious_sessions": 27,
@@ -98,23 +98,52 @@
   },
   {
     "model": "baseline_lstm_autoencoder",
-    "length_bias_correlation": 0.7863139071346241,
+    "length_bias_correlation": 0.7410525200181132,
     "threshold_free": {
-      "auroc": 0.49248816791575667,
-      "auprc": 0.06271008086065402
+      "auroc": 0.47930930579889497,
+      "auprc": 0.061000844144421716
     },
     "thresholds": {
       "90": {
         "threshold_percentile": 90,
-        "precision": 0.06962025316455696,
-        "recall": 0.10227272727272728,
-        "f1": 0.08284518828451883,
-        "detection_rate": 0.10227272727272728,
-        "false_positive_rate": 0.10020449897750511,
-        "true_positives": 99,
-        "false_positives": 1323,
-        "false_negatives": 869,
-        "true_negatives": 11880,
+        "precision": 0.07084468664850137,
+        "recall": 0.10743801652892562,
+        "f1": 0.08538587848932677,
+        "detection_rate": 0.10743801652892562,
+        "false_positive_rate": 0.10330985382110126,
+        "true_positives": 104,
+        "false_positives": 1364,
+        "false_negatives": 864,
+        "true_negatives": 11839,
+        "per_scenario_recall": {
+          "1": {
+            "total_malicious_sessions": 12,
+            "detected": 9,
+            "recall": 0.75
+          },
+          "2": {
+            "total_malicious_sessions": 929,
+            "detected": 88,
+            "recall": 0.09472551130247578
+          },
+          "3": {
+            "total_malicious_sessions": 27,
+            "detected": 7,
+            "recall": 0.25925925925925924
+          }
+        }
+      },
+      "95": {
+        "threshold_percentile": 95,
+        "precision": 0.07142857142857142,
+        "recall": 0.056818181818181816,
+        "f1": 0.06329113924050632,
+        "detection_rate": 0.056818181818181816,
+        "false_positive_rate": 0.05415435885783534,
+        "true_positives": 55,
+        "false_positives": 715,
+        "false_negatives": 913,
+        "true_negatives": 12488,
         "per_scenario_recall": {
           "1": {
             "total_malicious_sessions": 12,
@@ -123,66 +152,37 @@
           },
           "2": {
             "total_malicious_sessions": 929,
-            "detected": 90,
-            "recall": 0.0968783638320775
+            "detected": 41,
+            "recall": 0.04413347685683531
           },
           "3": {
             "total_malicious_sessions": 27,
-            "detected": 1,
-            "recall": 0.037037037037037035
-          }
-        }
-      },
-      "95": {
-        "threshold_percentile": 95,
-        "precision": 0.07048458149779736,
-        "recall": 0.049586776859504134,
-        "f1": 0.05821710127349909,
-        "detection_rate": 0.049586776859504134,
-        "false_positive_rate": 0.04794364917064303,
-        "true_positives": 48,
-        "false_positives": 633,
-        "false_negatives": 920,
-        "true_negatives": 12570,
-        "per_scenario_recall": {
-          "1": {
-            "total_malicious_sessions": 12,
             "detected": 6,
-            "recall": 0.5
-          },
-          "2": {
-            "total_malicious_sessions": 929,
-            "detected": 42,
-            "recall": 0.04520990312163617
-          },
-          "3": {
-            "total_malicious_sessions": 27,
-            "detected": 0,
-            "recall": 0.0
+            "recall": 0.2222222222222222
           }
         }
       },
       "99": {
         "threshold_percentile": 99,
-        "precision": 0.087248322147651,
-        "recall": 0.013429752066115703,
-        "f1": 0.023276633840644587,
-        "detection_rate": 0.013429752066115703,
-        "false_positive_rate": 0.010300689237294554,
-        "true_positives": 13,
-        "false_positives": 136,
-        "false_negatives": 955,
-        "true_negatives": 13067,
+        "precision": 0.06321839080459771,
+        "recall": 0.011363636363636364,
+        "f1": 0.01926444833625219,
+        "detection_rate": 0.011363636363636364,
+        "false_positive_rate": 0.012345679012345678,
+        "true_positives": 11,
+        "false_positives": 163,
+        "false_negatives": 957,
+        "true_negatives": 13040,
         "per_scenario_recall": {
           "1": {
             "total_malicious_sessions": 12,
-            "detected": 2,
-            "recall": 0.16666666666666666
+            "detected": 3,
+            "recall": 0.25
           },
           "2": {
             "total_malicious_sessions": 929,
-            "detected": 11,
-            "recall": 0.011840688912809472
+            "detected": 8,
+            "recall": 0.008611410118406888
           },
           "3": {
             "total_malicious_sessions": 27,
@@ -195,23 +195,23 @@
   },
   {
     "model": "baseline_static_vector_isolation_forest",
-    "length_bias_correlation": 0.043720062427888555,
+    "length_bias_correlation": 0.060136623145357324,
     "threshold_free": {
-      "auroc": 0.44572330637352015,
-      "auprc": 0.05788706814659187
+      "auroc": 0.46383961070705815,
+      "auprc": 0.05866350758219262
     },
     "thresholds": {
       "90": {
         "threshold_percentile": 90,
-        "precision": 0.041891083183722325,
-        "recall": 0.07231404958677685,
-        "f1": 0.05305039787798408,
-        "detection_rate": 0.07231404958677685,
-        "false_positive_rate": 0.1212603196243278,
-        "true_positives": 70,
-        "false_positives": 1601,
-        "false_negatives": 898,
-        "true_negatives": 11602,
+        "precision": 0.029940119760479042,
+        "recall": 0.056818181818181816,
+        "f1": 0.0392156862745098,
+        "detection_rate": 0.056818181818181816,
+        "false_positive_rate": 0.13496932515337423,
+        "true_positives": 55,
+        "false_positives": 1782,
+        "false_negatives": 913,
+        "true_negatives": 11421,
         "per_scenario_recall": {
           "1": {
             "total_malicious_sessions": 12,
@@ -220,56 +220,56 @@
           },
           "2": {
             "total_malicious_sessions": 929,
-            "detected": 57,
-            "recall": 0.061356297093649086
+            "detected": 47,
+            "recall": 0.05059203444564048
           },
           "3": {
             "total_malicious_sessions": 27,
-            "detected": 9,
-            "recall": 0.3333333333333333
+            "detected": 4,
+            "recall": 0.14814814814814814
           }
         }
       },
       "95": {
         "threshold_percentile": 95,
-        "precision": 0.03385731559854897,
-        "recall": 0.028925619834710745,
-        "f1": 0.031197771587743735,
-        "detection_rate": 0.028925619834710745,
-        "false_positive_rate": 0.060516549269105505,
-        "true_positives": 28,
-        "false_positives": 799,
-        "false_negatives": 940,
-        "true_negatives": 12404,
+        "precision": 0.027411167512690356,
+        "recall": 0.027892561983471075,
+        "f1": 0.027649769585253458,
+        "detection_rate": 0.027892561983471075,
+        "false_positive_rate": 0.07255926683329546,
+        "true_positives": 27,
+        "false_positives": 958,
+        "false_negatives": 941,
+        "true_negatives": 12245,
         "per_scenario_recall": {
           "1": {
             "total_malicious_sessions": 12,
-            "detected": 1,
-            "recall": 0.08333333333333333
+            "detected": 2,
+            "recall": 0.16666666666666666
           },
           "2": {
             "total_malicious_sessions": 929,
-            "detected": 25,
-            "recall": 0.02691065662002153
+            "detected": 22,
+            "recall": 0.023681377825618945
           },
           "3": {
             "total_malicious_sessions": 27,
-            "detected": 2,
-            "recall": 0.07407407407407407
+            "detected": 3,
+            "recall": 0.1111111111111111
           }
         }
       },
       "99": {
         "threshold_percentile": 99,
-        "precision": 0.017857142857142856,
+        "precision": 0.01556420233463035,
         "recall": 0.004132231404958678,
-        "f1": 0.006711409395973154,
+        "f1": 0.00653061224489796,
         "detection_rate": 0.004132231404958678,
-        "false_positive_rate": 0.01666287964856472,
+        "false_positive_rate": 0.019162311595849427,
         "true_positives": 4,
-        "false_positives": 220,
+        "false_positives": 253,
         "false_negatives": 964,
-        "true_negatives": 12983,
+        "true_negatives": 12950,
         "per_scenario_recall": {
           "1": {
             "total_malicious_sessions": 12,

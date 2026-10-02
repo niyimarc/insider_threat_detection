@@ -10,5 +10,9 @@
   "copies_since_device_connect": {
     "mean": 3.140291149278496,
     "std": 4.403802861721891
+  },
+  "user_session_volume_deviation": {
+    "mean": 1.5338061704056478,
+    "std": 0.8438791230052464
   }
 }

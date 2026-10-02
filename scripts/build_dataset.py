@@ -20,6 +20,7 @@ from src.preprocessing.sessionize import (
     build_all_sessions,
     assign_sessions_to_file_events,
     label_sessions,
+    add_user_session_volume_deviation_feature,
 )
 from src.preprocessing.split import split_users
 
@@ -45,6 +46,7 @@ def build_dataset():
     sessions_df = build_all_sessions(logon_df)
     file_df = assign_sessions_to_file_events(file_df, sessions_df)
     file_df = label_sessions(file_df)
+    file_df = add_user_session_volume_deviation_feature(file_df)
 
     print("Splitting users...")
     all_users = file_df["user"].unique()

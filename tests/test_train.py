@@ -31,9 +31,9 @@ def _toy_events_df():
         "seconds_since_device_connect": [10.0, 15.0, 20.0, 25.0, 30.0],
         "copies_since_device_connect": [0, 1, 0, 1, 2],
         "outside_working_hours": [False, False, True, True, True],
+        "user_session_volume_deviation": [1.0, 1.0, 1.0, 1.0, 1.0],
         "session_is_malicious": [False, False, False, False, False],  # benign-only, like real training data
     })
-
 
 def test_train_model_smoke_test_with_real_model_and_history_shape():
     events_df = _toy_events_df()

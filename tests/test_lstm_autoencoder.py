@@ -23,6 +23,7 @@ def _toy_events_df():
         "seconds_since_device_connect": [10.0, 15.0, 20.0, 25.0, 30.0],
         "copies_since_device_connect": [0, 1, 0, 1, 2],
         "outside_working_hours": [False, False, True, True, True],
+        "user_session_volume_deviation": [1.0, 1.0, 1.0, 1.0, 1.0],
         "session_is_malicious": [False, False, True, True, True],
     })
 
