@@ -14,5 +14,9 @@
   "user_session_volume_deviation": {
     "mean": 1.5338061704056478,
     "std": 0.8438791230052464
+  },
+  "user_session_frequency_deviation": {
+    "mean": 1.3743734262686491,
+    "std": 1.2913129918335085
   }
 }

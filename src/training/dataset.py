@@ -17,6 +17,7 @@ NUMERIC_FEATURE_COLUMNS = [
     "copies_since_device_connect",
     "outside_working_hours",
     "user_session_volume_deviation",
+    "user_session_frequency_deviation",
 ]
 
 

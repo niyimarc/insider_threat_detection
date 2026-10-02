@@ -32,6 +32,7 @@ def _toy_events_df():
         "copies_since_device_connect": [0, 1, 0, 1, 2],
         "outside_working_hours": [False, False, True, True, True],
         "user_session_volume_deviation": [1.0, 1.0, 1.0, 1.0, 1.0],
+        "user_session_frequency_deviation": [1.0, 1.0, 1.0, 1.0, 1.0],
         "session_is_malicious": [False, False, False, False, False],  # benign-only, like real training data
     })
 

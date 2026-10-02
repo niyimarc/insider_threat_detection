@@ -2,11 +2,18 @@ import numpy as np
 import pandas as pd
 
 from src.training.vocab import build_vocab
+from src.training.dataset import NUMERIC_FEATURE_COLUMNS
 from src.models.static_vector_baseline import (
     session_to_vector,
     build_session_vectors,
     StaticVectorAnomalyDetector,
 )
+
+# Number of continuous (non-categorical, non-boolean) numeric columns
+# that session_to_vector summarizes with 4 stats each -- everything in
+# NUMERIC_FEATURE_COLUMNS except the boolean outside_working_hours,
+# which gets its own single "fraction of events outside hours" slot.
+_NUM_CONTINUOUS_COLUMNS = len(NUMERIC_FEATURE_COLUMNS) - 1
 
 
 def _toy_events_df():
@@ -27,6 +34,7 @@ def _toy_events_df():
         "copies_since_device_connect": [0, 1, 0, 1, 2],
         "outside_working_hours": [False, False, True, True, True],
         "user_session_volume_deviation": [1.0, 1.0, 1.0, 1.0, 1.0],
+        "user_session_frequency_deviation": [1.0, 1.0, 1.0, 1.0, 1.0],
         "session_is_malicious": [False, False, True, True, True],
     })
 
@@ -38,9 +46,11 @@ def test_session_to_vector_has_expected_length_and_event_count():
 
     vector = session_to_vector(session_a, file_type_vocab, file_extension_vocab)
 
-    # 1 (count) + 3 continuous features * 4 stats + 1 (outside_hours frac)
+    # 1 (count) + continuous features * 4 stats + 1 (outside_hours frac)
     # + len(file_type_vocab) + len(file_extension_vocab)
-    expected_length = 1 + 4 * 4 + 1 + len(file_type_vocab) + len(file_extension_vocab)
+    expected_length = (
+        1 + _NUM_CONTINUOUS_COLUMNS * 4 + 1 + len(file_type_vocab) + len(file_extension_vocab)
+    )
     assert vector.shape == (expected_length,)
     assert vector[0] == 2  # session_a has 2 events
 
@@ -52,7 +62,7 @@ def test_session_to_vector_outside_hours_fraction_is_correct():
     session_b = events_df[events_df["user"] == "BBB0002"]  # all 3 outside hours
 
     vector = session_to_vector(session_b, file_type_vocab, file_extension_vocab)
-    outside_hours_fraction_index = 1 + 4 * 4  # right after count + continuous stats
+    outside_hours_fraction_index = 1 + _NUM_CONTINUOUS_COLUMNS * 4  # right after count + continuous stats
     assert vector[outside_hours_fraction_index] == 1.0
 
 
