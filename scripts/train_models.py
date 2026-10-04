@@ -26,16 +26,35 @@ CHECKPOINT_DIR = os.path.join(_PROJECT_ROOT, "checkpoints")
 
 BATCH_SIZE = 32
 NUM_EPOCHS = 100
-PATIENCE = 5
+# Raised from 5: the LSTM baseline's val loss was still trending down
+# (0.2601 -> 0.1788 in its last ~10 epochs) when patience=5 cut it off,
+# suggesting it hadn't actually plateaued yet -- a more generous budget
+# lets both models run closer to their real best-val-loss epoch before
+# stopping, rather than stopping on a short run of noisy non-improving
+# epochs.
+PATIENCE = 10
 
 # outside_working_hours is already 0/1 -- no need to standardize it like
 # the genuinely continuous, wildly-scaled columns.
 SCALED_COLUMNS = [c for c in NUMERIC_FEATURE_COLUMNS if c != "outside_working_hours"]
 
+# Trains on the GPU when one is available (e.g. a Colab GPU runtime) and
+# falls back to CPU otherwise, so the same script works on both.
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+
+
+def _cpu_state_dict(model):
+    """Checkpoints are always saved with CPU tensors, so they load fine on
+    a CPU-only machine (the evaluation scripts) regardless of where they
+    were trained -- a state dict saved from GPU tensors fails to load on
+    a machine without CUDA unless map_location is passed everywhere."""
+    return {key: value.cpu() for key, value in model.state_dict().items()}
+
 
 def main():
     os.makedirs(CHECKPOINT_DIR, exist_ok=True)
 
+    print(f"Training device: {DEVICE}")
     print(f"Loading {DATA_PATH} ...")
     events_df = pd.read_parquet(DATA_PATH)
     train_df = events_df[events_df["split"] == "train"]
@@ -71,10 +90,10 @@ def main():
     )
     transformer_model, transformer_history = train_model(
         transformer_model, train_loader, val_loader, transformer_loss,
-        num_epochs=NUM_EPOCHS, patience=PATIENCE,
+        num_epochs=NUM_EPOCHS, patience=PATIENCE, device=DEVICE,
     )
     torch.save(
-        transformer_model.state_dict(),
+        _cpu_state_dict(transformer_model),
         os.path.join(CHECKPOINT_DIR, "transformer_autoencoder.pt"),
     )
     with open(os.path.join(CHECKPOINT_DIR, "transformer_autoencoder_history.json"), "w") as f:
@@ -82,15 +101,20 @@ def main():
 
     # --- Baseline 1: LSTM autoencoder ---
     print("\n=== Training baseline 1 (LSTM autoencoder) ===")
+    # hidden_dim raised from the default 64 to 128: scripts/tune_models.py's
+    # comparison showed this config reaching a best val loss of 0.1196 vs.
+    # 0.2068 for hidden_dim=64 (same lr, same epoch budget) -- a clear,
+    # consistent win at every epoch along the way, not just at the end.
     lstm_model = LSTMAutoencoder(
         file_type_vocab_size=len(file_type_vocab),
         file_extension_vocab_size=len(file_extension_vocab),
+        hidden_dim=128,
     )
     lstm_model, lstm_history = train_model(
         lstm_model, train_loader, val_loader, lstm_loss,
-        num_epochs=NUM_EPOCHS, patience=PATIENCE,
+        num_epochs=NUM_EPOCHS, patience=PATIENCE, device=DEVICE,
     )
-    torch.save(lstm_model.state_dict(), os.path.join(CHECKPOINT_DIR, "lstm_autoencoder.pt"))
+    torch.save(_cpu_state_dict(lstm_model), os.path.join(CHECKPOINT_DIR, "lstm_autoencoder.pt"))
     with open(os.path.join(CHECKPOINT_DIR, "lstm_autoencoder_history.json"), "w") as f:
         json.dump(lstm_history, f, indent=2)
 

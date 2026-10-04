@@ -28,7 +28,7 @@ class LSTMAutoencoder(nn.Module):
         file_extension_vocab_size,
         file_type_embed_dim=8,
         file_extension_embed_dim=8,
-        hidden_dim=64,
+        hidden_dim=128,  # raised from 64 -- see scripts/tune_models.py results
         num_layers=1,
         dropout=0.0,
     ):
