@@ -26,6 +26,7 @@ from sklearn.ensemble import IsolationForest
 
 from src.training.dataset import NUMERIC_FEATURE_COLUMNS, SESSION_KEY_COLUMNS
 from src.training.vocab import encode
+from src.preprocessing.feature_groups import BINARY_NUMERIC_COLUMNS
 
 
 def session_to_vector(session_df, file_type_vocab, file_extension_vocab):
@@ -45,7 +46,7 @@ def session_to_vector(session_df, file_type_vocab, file_extension_vocab):
 
     features.append(len(session_df))  # session length (event count)
 
-    continuous_columns = [c for c in NUMERIC_FEATURE_COLUMNS if c != "outside_working_hours"]
+    continuous_columns = [c for c in NUMERIC_FEATURE_COLUMNS if c not in BINARY_NUMERIC_COLUMNS]
     for column in continuous_columns:
         values = session_df[column].astype(float)
         features.extend([
@@ -55,7 +56,11 @@ def session_to_vector(session_df, file_type_vocab, file_extension_vocab):
             values.max(),
         ])
 
-    features.append(session_df["outside_working_hours"].astype(float).mean())
+    # 0/1 flag columns (e.g. outside_working_hours) are summarised as the
+    # fraction of the session's events that are flagged.
+    binary_columns = [c for c in NUMERIC_FEATURE_COLUMNS if c in BINARY_NUMERIC_COLUMNS]
+    for column in binary_columns:
+        features.append(session_df[column].astype(float).mean())
 
     # Proportion of this session's events falling into each vocabulary
     # entry -- e.g. if 2 of 5 events are "pdf", that category gets 0.4.

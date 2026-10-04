@@ -9,19 +9,26 @@ sys.path.insert(0, _PROJECT_ROOT)
 
 from src.preprocessing.load import load_file_events, load_logon_events, load_device_events
 from src.preprocessing.labeling import load_malicious_windows, label_file_events
-from src.preprocessing.features import (
+from src.preprocessing.file_features import (
     extract_file_type,
     extract_file_extension,
     add_time_since_previous_event,
-    add_device_session_features,
-    add_outside_hours_feature,
 )
+from src.preprocessing.device_features import add_device_session_features
+from src.preprocessing.logon_features import add_outside_hours_feature
 from src.preprocessing.sessionize import (
     build_all_sessions,
     assign_sessions_to_file_events,
     label_sessions,
+)
+from src.preprocessing.file_session_features import (
     add_user_session_volume_deviation_feature,
     add_user_session_frequency_deviation_feature,
+)
+from src.preprocessing.feature_groups import (
+    NUMERIC_FEATURE_REGISTRY,
+    available_groups,
+    require_columns,
 )
 from src.preprocessing.split import split_users
 
@@ -36,19 +43,35 @@ def build_dataset():
     malicious_windows = load_malicious_windows()
     file_df = label_file_events(file_df, malicious_windows)
 
+    # Each signal's features are added by its own module. To add a new
+    # signal (e.g. http): write src/preprocessing/http_features.py,
+    # register its columns in src/preprocessing/feature_groups.py, and
+    # call it here -- see the feature_groups module docstring.
     print("Engineering features...")
+    # signal group "file"
     file_df = extract_file_type(file_df)
     file_df = extract_file_extension(file_df)
     file_df = add_time_since_previous_event(file_df)
+    # signal group "device"
     file_df = add_device_session_features(file_df, device_df)
+    # signal group "logon"
     file_df = add_outside_hours_feature(file_df, logon_df)
 
     print("Building sessions...")
     sessions_df = build_all_sessions(logon_df)
     file_df = assign_sessions_to_file_events(file_df, sessions_df)
     file_df = label_sessions(file_df)
+    # signal group "file" (session level -- needs sessions to exist)
     file_df = add_user_session_volume_deviation_feature(file_df)
     file_df = add_user_session_frequency_deviation_feature(file_df)
+
+    # The saved dataset must always contain EVERY registered feature,
+    # whichever groups a later training run chooses to enable -- so
+    # ablations only need an environment variable, not a rebuild.
+    require_columns(file_df, groups=available_groups())
+    print("Feature columns in the dataset:")
+    for column, group in NUMERIC_FEATURE_REGISTRY:
+        print(f"  [{group}] {column}")
 
     print("Splitting users...")
     all_users = file_df["user"].unique()

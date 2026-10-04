@@ -35,7 +35,8 @@ from torch.utils.data import DataLoader
 
 from src.training.vocab import build_vocab
 from src.training.scaling import build_scaler
-from src.training.dataset import SessionDataset, collate_sessions, NUMERIC_FEATURE_COLUMNS
+from src.training.dataset import SessionDataset, collate_sessions
+from src.preprocessing.feature_groups import get_scaled_columns
 from src.training.train import train_model
 from src.models.transformer_autoencoder import DualChannelTransformerAutoencoder, reconstruction_loss as transformer_loss
 from src.models.lstm_autoencoder import LSTMAutoencoder, reconstruction_loss as lstm_loss
@@ -46,7 +47,7 @@ SWEEP_NUM_EPOCHS = 40
 SWEEP_PATIENCE = 5
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
-SCALED_COLUMNS = [c for c in NUMERIC_FEATURE_COLUMNS if c != "outside_working_hours"]
+SCALED_COLUMNS = get_scaled_columns()
 
 LSTM_CONFIGS = [
     {"hidden_dim": 64, "dropout": 0.0, "lr": 1e-3},   # current default, for comparison

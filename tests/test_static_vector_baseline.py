@@ -1,19 +1,22 @@
 import numpy as np
 import pandas as pd
+import pytest
 
 from src.training.vocab import build_vocab
 from src.training.dataset import NUMERIC_FEATURE_COLUMNS
+from src.preprocessing.feature_groups import BINARY_NUMERIC_COLUMNS
 from src.models.static_vector_baseline import (
     session_to_vector,
     build_session_vectors,
     StaticVectorAnomalyDetector,
 )
 
-# Number of continuous (non-categorical, non-boolean) numeric columns
-# that session_to_vector summarizes with 4 stats each -- everything in
-# NUMERIC_FEATURE_COLUMNS except the boolean outside_working_hours,
-# which gets its own single "fraction of events outside hours" slot.
-_NUM_CONTINUOUS_COLUMNS = len(NUMERIC_FEATURE_COLUMNS) - 1
+# session_to_vector summarises every continuous numeric column with 4
+# stats (mean/std/min/max), and every 0/1 flag column with a single
+# "fraction of events flagged" slot. Both counts come from the feature
+# registry, so this test stays correct as signals are added or disabled.
+_NUM_CONTINUOUS_COLUMNS = len([c for c in NUMERIC_FEATURE_COLUMNS if c not in BINARY_NUMERIC_COLUMNS])
+_NUM_BINARY_COLUMNS = len([c for c in NUMERIC_FEATURE_COLUMNS if c in BINARY_NUMERIC_COLUMNS])
 
 
 def _toy_events_df():
@@ -46,15 +49,20 @@ def test_session_to_vector_has_expected_length_and_event_count():
 
     vector = session_to_vector(session_a, file_type_vocab, file_extension_vocab)
 
-    # 1 (count) + continuous features * 4 stats + 1 (outside_hours frac)
-    # + len(file_type_vocab) + len(file_extension_vocab)
+    # 1 (count) + continuous features * 4 stats + one fraction per 0/1 flag
+    # column + len(file_type_vocab) + len(file_extension_vocab)
     expected_length = (
-        1 + _NUM_CONTINUOUS_COLUMNS * 4 + 1 + len(file_type_vocab) + len(file_extension_vocab)
+        1 + _NUM_CONTINUOUS_COLUMNS * 4 + _NUM_BINARY_COLUMNS
+        + len(file_type_vocab) + len(file_extension_vocab)
     )
     assert vector.shape == (expected_length,)
     assert vector[0] == 2  # session_a has 2 events
 
 
+@pytest.mark.skipif(
+    "outside_working_hours" not in NUMERIC_FEATURE_COLUMNS,
+    reason="the logon feature group is disabled in this configuration",
+)
 def test_session_to_vector_outside_hours_fraction_is_correct():
     events_df = _toy_events_df()
     file_type_vocab = build_vocab(events_df["file_type"])

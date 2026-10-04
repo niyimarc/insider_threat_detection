@@ -3,22 +3,19 @@ from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import Dataset
 from src.training.vocab import encode
 from src.training.scaling import apply_scaler
+from src.preprocessing.feature_groups import get_numeric_feature_columns, require_columns
 
 SESSION_KEY_COLUMNS = ["user", "session_start", "session_end"]
 
-# The columns that go into the model as plain numeric features. Notably
-# absent: is_malicious / session_is_malicious (the label, not an input —
+# The columns that go into the model as plain numeric features. They come
+# from the feature registry (src/preprocessing/feature_groups.py), which
+# is the single place that says which signals exist and which are
+# enabled -- add new signals there, not here. Notably absent:
+# is_malicious / session_is_malicious (the label, not an input —
 # including it here would leak the answer to the model), and file_type /
 # file_extension (categorical — handled separately as integer indices,
 # below, for an embedding layer rather than being crammed in here).
-NUMERIC_FEATURE_COLUMNS = [
-    "seconds_since_last_event",
-    "seconds_since_device_connect",
-    "copies_since_device_connect",
-    "outside_working_hours",
-    "user_session_volume_deviation",
-    "user_session_frequency_deviation",
-]
+NUMERIC_FEATURE_COLUMNS = get_numeric_feature_columns()
 
 
 def session_to_tensors(session_df, file_type_vocab, file_extension_vocab, numeric_scaler=None):
@@ -97,6 +94,11 @@ class SessionDataset(Dataset):
     """
 
     def __init__(self, events_df, file_type_vocab, file_extension_vocab, numeric_scaler=None):
+        # Fail early, with a clear message, if the processed dataset
+        # predates a registered feature (rather than a bare KeyError
+        # from deep inside session_to_tensors on the first batch).
+        require_columns(events_df)
+
         self.file_type_vocab = file_type_vocab
         self.file_extension_vocab = file_extension_vocab
         self.numeric_scaler = numeric_scaler

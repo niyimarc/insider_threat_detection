@@ -40,6 +40,7 @@ from sklearn.metrics import roc_auc_score, average_precision_score
 
 from src.training.vocab import load_vocab
 from src.training.scaling import load_scaler
+from src.training.feature_config import verify_feature_config
 from src.training.dataset import SessionDataset, collate_sessions, SESSION_KEY_COLUMNS
 from src.preprocessing.labeling import load_malicious_windows
 from src.models.transformer_autoencoder import (
@@ -127,6 +128,7 @@ def main():
     print("Loading vocabularies and scaler saved during training ...")
     file_type_vocab = load_vocab(os.path.join(CHECKPOINT_DIR, "file_type_vocab.json"))
     file_extension_vocab = load_vocab(os.path.join(CHECKPOINT_DIR, "file_extension_vocab.json"))
+    verify_feature_config(CHECKPOINT_DIR)
     scaler = load_scaler(os.path.join(CHECKPOINT_DIR, "numeric_scaler.json"))
 
     print("Building user -> scenario map from insiders.csv ...")

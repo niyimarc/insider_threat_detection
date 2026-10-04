@@ -33,11 +33,15 @@ import math
 import torch
 import torch.nn as nn
 from src.training.dataset import NUMERIC_FEATURE_COLUMNS
+from src.preprocessing.feature_groups import PRESENCE_COLUMN
 
 # Index of each numeric column within the "numeric" tensor produced by
 # session_to_tensors / collate_sessions -- used to split it into the
-# presence input (index 0) and the magnitude inputs (the rest).
-PRESENCE_COLUMN_INDEX = NUMERIC_FEATURE_COLUMNS.index("seconds_since_last_event")
+# presence input (the column at PRESENCE_COLUMN_INDEX) and the magnitude
+# inputs (all the others). PRESENCE_COLUMN belongs to the mandatory
+# "file" feature group, so it is always present however the other
+# signal groups are configured.
+PRESENCE_COLUMN_INDEX = NUMERIC_FEATURE_COLUMNS.index(PRESENCE_COLUMN)
 MAGNITUDE_NUMERIC_INDICES = [
     i for i in range(len(NUMERIC_FEATURE_COLUMNS)) if i != PRESENCE_COLUMN_INDEX
 ]

@@ -12,7 +12,9 @@ from torch.utils.data import DataLoader
 
 from src.training.vocab import build_vocab, save_vocab
 from src.training.scaling import build_scaler, save_scaler
-from src.training.dataset import SessionDataset, collate_sessions, NUMERIC_FEATURE_COLUMNS
+from src.training.dataset import SessionDataset, collate_sessions
+from src.training.feature_config import save_feature_config
+from src.preprocessing.feature_groups import get_scaled_columns
 from src.training.train import train_model
 from src.models.transformer_autoencoder import (
     DualChannelTransformerAutoencoder,
@@ -34,9 +36,9 @@ NUM_EPOCHS = 100
 # epochs.
 PATIENCE = 10
 
-# outside_working_hours is already 0/1 -- no need to standardize it like
-# the genuinely continuous, wildly-scaled columns.
-SCALED_COLUMNS = [c for c in NUMERIC_FEATURE_COLUMNS if c != "outside_working_hours"]
+# 0/1 flag columns (see feature_groups.BINARY_NUMERIC_COLUMNS) are not
+# standardised -- only the genuinely continuous, wildly-scaled columns are.
+SCALED_COLUMNS = get_scaled_columns()
 
 # Trains on the GPU when one is available (e.g. a Colab GPU runtime) and
 # falls back to CPU otherwise, so the same script works on both.
@@ -70,6 +72,11 @@ def main():
     scaler = build_scaler(train_df, SCALED_COLUMNS)
     save_scaler(scaler, os.path.join(CHECKPOINT_DIR, "numeric_scaler.json"))
     print(scaler)
+
+    # Record which feature groups/columns these checkpoints are trained
+    # with, so evaluation can verify it is using the same configuration.
+    feature_config_path = save_feature_config(CHECKPOINT_DIR)
+    print(f"Feature configuration saved to {feature_config_path}")
 
     print("Building datasets and loaders ...")
     train_dataset = SessionDataset(train_df, file_type_vocab, file_extension_vocab, scaler)
