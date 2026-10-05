@@ -22,6 +22,7 @@ from src.models.transformer_autoencoder import (
 from src.models.lstm_autoencoder import LSTMAutoencoder, session_anomaly_score as lstm_score_fn
 from src.models.static_vector_baseline import build_session_vectors
 from src.evaluation.score import score_pytorch_model, score_static_model
+from src.evaluation.partition import select_test_df, get_partition_name
 from src.evaluation.metrics import (
     diagnose_length_bias,
     percentile_calibrate_by_length,
@@ -94,7 +95,7 @@ def main():
     print(f"Loading {DATA_PATH} ...")
     events_df = pd.read_parquet(DATA_PATH)
     val_df = events_df[events_df["split"] == "validation"]
-    test_df = events_df[events_df["split"] == "test"]
+    test_df = select_test_df(events_df)
 
     print("Loading vocabularies and scaler saved during training ...")
     file_type_vocab = load_vocab(os.path.join(CHECKPOINT_DIR, "file_type_vocab.json"))
@@ -162,7 +163,9 @@ def main():
         test_scores, static_test_lengths, test_labels.tolist(), test_users, scenario_map,
     ))
 
-    results_path = os.path.join(CHECKPOINT_DIR, "evaluation_results.json")
+    # One results file per partition, so a locked-partition run can never
+    # overwrite (or be confused with) the development results.
+    results_path = os.path.join(CHECKPOINT_DIR, f"evaluation_results_{get_partition_name()}.json")
     with open(results_path, "w") as f:
         json.dump(all_results, f, indent=2, default=str)
     print(f"\nFull results saved to {results_path}")

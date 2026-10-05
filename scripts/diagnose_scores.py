@@ -33,6 +33,7 @@ from src.training.scaling import load_scaler
 from src.training.feature_config import verify_feature_config
 from src.training.dataset import SessionDataset, collate_sessions, SESSION_KEY_COLUMNS
 from src.preprocessing.labeling import load_malicious_windows
+from src.evaluation.partition import select_test_df
 from src.models.transformer_autoencoder import (
     DualChannelTransformerAutoencoder,
     PRESENCE_COLUMN_INDEX,
@@ -99,7 +100,7 @@ def transformer_component_scores(model, loader):
 
 def main():
     events_df = pd.read_parquet(DATA_PATH)
-    test_df = events_df[events_df["split"] == "test"]
+    test_df = select_test_df(events_df)
 
     windows = load_malicious_windows()
     scenario_map = windows.set_index("user")["scenario"].to_dict()

@@ -30,7 +30,7 @@ from src.preprocessing.feature_groups import (
     available_groups,
     require_columns,
 )
-from src.preprocessing.split import split_users
+from src.preprocessing.split import split_users, split_test_partition
 
 
 def build_dataset():
@@ -83,6 +83,18 @@ def build_dataset():
     file_df.loc[file_df["user"].isin(val_users), "split"] = "validation"
     file_df.loc[file_df["user"].isin(test_users), "split"] = "test"
     assert (file_df["split"] != "unassigned").all(), "Some users were not assigned a split"
+
+    # Test users are further divided into a development partition (used
+    # for every design decision) and a locked partition (evaluated once,
+    # at the end). Insiders are stratified by scenario.
+    scenario_by_user = malicious_windows.set_index("user")["scenario"].to_dict()
+    dev_users, locked_users = split_test_partition(test_users, scenario_by_user)
+    file_df["test_partition"] = ""
+    file_df.loc[file_df["user"].isin(dev_users), "test_partition"] = "dev"
+    file_df.loc[file_df["user"].isin(locked_users), "test_partition"] = "locked"
+    print("Test partition (users): "
+          f"dev={len(dev_users)} (insiders {len(dev_users & set(scenario_by_user))}), "
+          f"locked={len(locked_users)} (insiders {len(locked_users & set(scenario_by_user))})")
 
     print("Saving processed data...")
     output_dir = os.path.join(_PROJECT_ROOT, "data", "processed")

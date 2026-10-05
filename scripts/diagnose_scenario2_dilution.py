@@ -50,6 +50,7 @@ from src.models.transformer_autoencoder import (
 from src.models.lstm_autoencoder import LSTMAutoencoder, session_anomaly_score as lstm_score_fn
 from src.models.static_vector_baseline import build_session_vectors
 from src.evaluation.score import score_pytorch_model, score_static_model
+from src.evaluation.partition import select_test_df
 
 DATA_PATH = os.path.join(_PROJECT_ROOT, "data", "processed", "file_events_processed.parquet")
 CHECKPOINT_DIR = os.path.join(_PROJECT_ROOT, "checkpoints")
@@ -123,7 +124,7 @@ def report(name, test_scores, test_labels, test_users, scenario_map):
 def main():
     print(f"Loading {DATA_PATH} ...")
     events_df = pd.read_parquet(DATA_PATH)
-    test_df = events_df[events_df["split"] == "test"]
+    test_df = select_test_df(events_df)
 
     print("Loading vocabularies and scaler saved during training ...")
     file_type_vocab = load_vocab(os.path.join(CHECKPOINT_DIR, "file_type_vocab.json"))
