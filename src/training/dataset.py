@@ -106,26 +106,37 @@ class SessionDataset(Dataset):
         # Sorting the group keys gives a fixed, reproducible sample order
         # (dict/groupby order isn't guaranteed to be stable across runs
         # otherwise), which matters for things like debugging by index.
-        self._sessions = [
+        sessions = [
             group for _, group in events_df.sort_values(SESSION_KEY_COLUMNS).groupby(
                 SESSION_KEY_COLUMNS, sort=False
             )
         ]
 
-        # Which user each session (in the same order as _sessions) belongs
-        # to -- needed by the evaluation pipeline to break results down by
-        # scenario (Chapter 3.7), since scenario is a property of the user,
-        # not something carried in the tensors themselves.
-        self.session_users = [session_df["user"].iloc[0] for session_df in self._sessions]
+        # Which user each session (in the same order as the samples)
+        # belongs to -- needed by the evaluation pipeline to break results
+        # down by scenario (Chapter 3.7), since scenario is a property of
+        # the user, not something carried in the tensors themselves.
+        self.session_users = [session_df["user"].iloc[0] for session_df in sessions]
+
+        # Convert every session to tensors ONCE, here, rather than on every
+        # __getitem__ call. Building tensors from pandas (sorting, scaling,
+        # vocabulary lookups) is far slower than the model's own forward
+        # pass, and doing it per epoch for ~40k sessions left the GPU
+        # waiting on a single CPU thread. The result is identical -- the
+        # scaler and vocabularies are fixed by this point -- and the
+        # tensors for the whole split are only a few MB.
+        self._samples = [
+            session_to_tensors(
+                session_df, self.file_type_vocab, self.file_extension_vocab, self.numeric_scaler
+            )
+            for session_df in sessions
+        ]
 
     def __len__(self):
-        return len(self._sessions)
+        return len(self._samples)
 
     def __getitem__(self, index):
-        session_df = self._sessions[index]
-        return session_to_tensors(
-            session_df, self.file_type_vocab, self.file_extension_vocab, self.numeric_scaler
-        )
+        return self._samples[index]
 
 
 def collate_sessions(batch):
