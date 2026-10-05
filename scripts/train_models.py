@@ -14,6 +14,7 @@ from src.training.vocab import build_vocab, save_vocab
 from src.training.scaling import build_scaler, save_scaler
 from src.training.dataset import SessionDataset, collate_sessions
 from src.training.feature_config import save_feature_config
+from src.training.run_config import get_checkpoint_dir, get_seed, set_global_seed, save_run_metadata
 from src.preprocessing.feature_groups import get_scaled_columns
 from src.training.train import train_model
 from src.models.transformer_autoencoder import (
@@ -24,7 +25,11 @@ from src.models.lstm_autoencoder import LSTMAutoencoder, reconstruction_loss as 
 from src.models.static_vector_baseline import build_session_vectors, StaticVectorAnomalyDetector
 
 DATA_PATH = os.path.join(_PROJECT_ROOT, "data", "processed", "file_events_processed.parquet")
-CHECKPOINT_DIR = os.path.join(_PROJECT_ROOT, "checkpoints")
+# Folder and seed come from INSIDER_CHECKPOINT_DIR / INSIDER_SEED (see
+# src/training/run_config.py) so ablations and repeated runs don't
+# overwrite each other.
+CHECKPOINT_DIR = get_checkpoint_dir()
+SEED = get_seed()
 
 BATCH_SIZE = 32
 NUM_EPOCHS = 100
@@ -55,8 +60,12 @@ def _cpu_state_dict(model):
 
 def main():
     os.makedirs(CHECKPOINT_DIR, exist_ok=True)
+    set_global_seed(SEED)
 
     print(f"Training device: {DEVICE}")
+    print(f"Seed: {SEED}")
+    print(f"Checkpoint folder: {CHECKPOINT_DIR}")
+    print(f"Run metadata saved to {save_run_metadata(CHECKPOINT_DIR, SEED, DEVICE)}")
     print(f"Loading {DATA_PATH} ...")
     events_df = pd.read_parquet(DATA_PATH)
     train_df = events_df[events_df["split"] == "train"]
@@ -128,7 +137,7 @@ def main():
     # --- Baseline 2: static session-vector Isolation Forest ---
     print("\n=== Fitting baseline 2 (static-vector Isolation Forest) ===")
     train_vectors, _ = build_session_vectors(train_df, file_type_vocab, file_extension_vocab)
-    static_detector = StaticVectorAnomalyDetector()
+    static_detector = StaticVectorAnomalyDetector(random_state=SEED)
     static_detector.fit(train_vectors)
     joblib.dump(static_detector, os.path.join(CHECKPOINT_DIR, "static_vector_detector.joblib"))
 

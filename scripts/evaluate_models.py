@@ -13,6 +13,7 @@ from torch.utils.data import DataLoader
 from src.training.vocab import load_vocab
 from src.training.scaling import load_scaler
 from src.training.feature_config import verify_feature_config
+from src.training.run_config import get_checkpoint_dir
 from src.training.dataset import SessionDataset, collate_sessions, SESSION_KEY_COLUMNS
 from src.preprocessing.labeling import load_malicious_windows
 from src.models.transformer_autoencoder import (
@@ -32,7 +33,7 @@ from src.evaluation.metrics import (
 )
 
 DATA_PATH = os.path.join(_PROJECT_ROOT, "data", "processed", "file_events_processed.parquet")
-CHECKPOINT_DIR = os.path.join(_PROJECT_ROOT, "checkpoints")
+CHECKPOINT_DIR = get_checkpoint_dir()
 BATCH_SIZE = 64
 THRESHOLD_PERCENTILES = [90, 95, 99]
 LENGTH_BUCKETS = 5

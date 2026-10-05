@@ -145,6 +145,20 @@ Always from the project root (`%cd /content/project`).
 !python scripts/evaluate_models.py           # dev partition by default
 ```
 
+Named runs (use these for ablations and multiple seeds, so runs never overwrite each other). Train and evaluate must get the SAME `INSIDER_CHECKPOINT_DIR`:
+
+```
+# all signal groups, seed 1
+!INSIDER_CHECKPOINT_DIR=checkpoints/all_seed1 INSIDER_SEED=1 python scripts/train_models.py
+!INSIDER_CHECKPOINT_DIR=checkpoints/all_seed1 python scripts/evaluate_models.py
+
+# ablation: without http, seed 1
+!INSIDER_FEATURE_GROUPS=file,device,logon INSIDER_CHECKPOINT_DIR=checkpoints/nohttp_seed1 INSIDER_SEED=1 python scripts/train_models.py
+!INSIDER_FEATURE_GROUPS=file,device,logon INSIDER_CHECKPOINT_DIR=checkpoints/nohttp_seed1 python scripts/evaluate_models.py
+```
+
+Each folder gets `feature_config.json` and `run_metadata.json` (seed, versions, git commit). Evaluating with a different feature selection than the run was trained with stops with a clear error.
+
 Diagnostics and ablations:
 
 ```
