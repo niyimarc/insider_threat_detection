@@ -27,7 +27,35 @@ Runtime -> Change runtime type -> **T4 GPU** -> Save. Then run:
 
 If it prints a GPU table, you are good. If it says `command not found`, there is no GPU: Runtime -> Disconnect and delete runtime, reselect T4, and check again. Training on CPU works but is far slower.
 
-## 1. Full setup (new session, or after a disconnect)
+## Quick setup: ONE cell for every new session
+
+Colab runtimes are temporary and get recycled (idle timeout, time limit, closing the browser). Data on Drive is never lost, so recovery is just this cell. It is safe to run at any time: it mounts Drive, clones the code (or pulls if it is already there), installs requirements, and re-links the Drive folders.
+
+```python
+from google.colab import drive, userdata
+drive.mount('/content/drive')
+token = userdata.get('GITHUB_TOKEN')
+D = "/content/drive/MyDrive/insider_threat"
+
+!mkdir -p {D}/raw {D}/processed {D}/checkpoints
+!if [ -d /content/project/.git ]; then git -C /content/project pull; else git clone https://{token}@github.com/niyimarc/insider_threat_detection.git /content/project; fi
+!pip install -q -r /content/project/requirements.txt
+
+!mkdir -p /content/project/data
+!rm -rf /content/project/checkpoints
+!ln -sfn {D}/raw /content/project/data/raw
+!ln -sfn {D}/processed /content/project/data/processed
+!ln -sfn {D}/checkpoints /content/project/checkpoints
+%cd /content/project
+!git log --oneline -1
+!ls data/raw data/processed checkpoints
+```
+
+Then check the GPU (`!nvidia-smi`) and run whatever step you need. The expected `ls` output: `raw/` holds `r4.2` and `answers`, `processed/` holds the parquet files, `checkpoints/` holds the model files. If `r4.2` is missing, do the one-off raw-data download in section 1.
+
+What cannot be made permanent: a running job. If the runtime is recycled mid-run, that run is lost and restarts from the beginning (training and the http precompute have no resume).
+
+## 1. Full setup, step by step (same thing as the quick setup, in separate cells)
 
 Run these cells in order.
 

@@ -37,8 +37,14 @@ def test_default_column_order_matches_the_order_checkpoints_were_trained_with():
         "user_session_frequency_deviation",
         "http_new_domains_today",
         "http_new_domains_7d",
-        "http_volume_deviation",
     ]
+
+
+def test_no_http_volume_feature_is_registered():
+    # Deliberately excluded: daily http volume is constant per user in
+    # CERT r4.2 (see src/preprocessing/http_features.py), so such a
+    # feature could only detect generation artifacts, not behaviour.
+    assert not any("volume" in c for c, g in NUMERIC_FEATURE_REGISTRY if g == "http")
 
 
 def test_registry_has_no_duplicate_columns():

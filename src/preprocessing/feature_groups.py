@@ -9,7 +9,7 @@ log source or one family of features derived from it:
     file    file.csv        file-copy timing, session volume, session frequency
     device  device.csv      removable-device connection features
     logon   logon.csv       working-hours behaviour
-    http    http.csv        new-domain browsing and daily visit volume
+    http    http.csv        new-domain browsing (novelty vs the user's own history)
 
 Adding a new signal (http, email, ...) is a three-step change:
   1. write src/preprocessing/<signal>_features.py, one function per
@@ -57,7 +57,6 @@ NUMERIC_FEATURE_REGISTRY = (
     ("user_session_frequency_deviation", "file"),
     ("http_new_domains_today", "http"),
     ("http_new_domains_7d", "http"),
-    ("http_volume_deviation", "http"),
 )
 
 # Columns that are already 0/1 flags: not standardised, and summarised

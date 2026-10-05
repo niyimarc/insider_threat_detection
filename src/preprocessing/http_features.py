@@ -18,12 +18,16 @@ Features (all attached to every file event on that user-day):
                            for the first time ever)
   http_new_domains_7d      the same, summed over the trailing 7 days
                            (today and the 6 days before it)
-  http_volume_deviation    log(1 + today's visits) - log(1 + the user's mean
-                           visits on their OTHER browsing days), clipped to
-                           +/-4. 0 = a usual day, +1 = about 2.7x usual.
-                           (An earlier z-score version was discarded: it
-                           blew up to +/-1e7 for users with very regular
-                           daily counts.)
+NO VOLUME FEATURE, deliberately. An http_volume_deviation feature was
+built and then REMOVED after checking the 136 training users: every one
+of them has an (almost) perfectly constant number of http visits per
+day (e.g. 10 on each of the first 25 days; share of days on the modal
+count = 1.000, std = 0). Daily volume therefore carries no information
+about normal behaviour in this dataset, and such a feature could only
+fire on a day whose count differs from that constant -- a trace of how
+the data was generated or modified, not of user behaviour. Using it
+would inflate accuracy through a dataset artifact. This is a property of
+the CERT r4.2 http log to report in the thesis.
 
 Rules that keep this leak-free:
   * No labels, no answer key, no hand-made domain categories ("job
@@ -34,11 +38,8 @@ Rules that keep this leak-free:
   * A user's first WARMUP_DAYS days of browsing are treated as
     establishing their baseline: domains first seen then do not count as
     new (otherwise every domain would be "new" at the start of the log).
-  * http_volume_deviation is leave-one-out over the user's whole
-    timeline, like the existing session-volume feature -- it is NOT
-    point-in-time. This is a documented limitation.
 
-A file event on a day with no recorded browsing gets 0.0 for all three
+A file event on a day with no recorded browsing gets 0.0 for both
 (the neutral value).
 """
 
@@ -48,13 +49,10 @@ import pandas as pd
 HTTP_FEATURE_COLUMNS = (
     "http_new_domains_today",
     "http_new_domains_7d",
-    "http_volume_deviation",
 )
 
 WARMUP_DAYS = 14
 TRAILING_DAYS = 7
-MIN_ACTIVE_DAYS_FOR_DEVIATION = 3
-MAX_ABS_VOLUME_DEVIATION = 4.0
 
 
 def load_http_domain_daily(processed_dir):
@@ -96,21 +94,6 @@ def build_http_user_day_features(domain_daily, warmup_days=WARMUP_DAYS, trailing
     active = active.merge(new_per_day, on=["user", "day"], how="left")
     active["new_domains"] = active["new_domains"].fillna(0.0)
 
-    # --- leave-one-out log-ratio of the visit count to the user's usual day ---
-    # A ratio (not a z-score): dividing by the user's own standard
-    # deviation explodes for users whose daily counts barely vary (a
-    # one-visit difference over a ~1e-6 deviation), and it wrecks the
-    # scaler downstream. The log-ratio is bounded and needs no variance.
-    n = active.groupby("user")["visits"].transform("count")
-    s = active.groupby("user")["visits"].transform("sum")
-    m = n - 1
-    safe_m = m.where(m > 0, np.nan)
-    loo_mean = (s - active["visits"]) / safe_m
-    deviation = np.log1p(active["visits"]) - np.log1p(loo_mean)
-    deviation = deviation.clip(lower=-MAX_ABS_VOLUME_DEVIATION, upper=MAX_ABS_VOLUME_DEVIATION)
-    deviation = deviation.where(n >= MIN_ACTIVE_DAYS_FOR_DEVIATION, 0.0)
-    active["http_volume_deviation"] = deviation.replace([np.inf, -np.inf], 0.0).fillna(0.0)
-
     # --- trailing-window novelty over CALENDAR days (inactive days count as 0) ---
     pieces = []
     for user, g in active.groupby("user", sort=False):
@@ -123,11 +106,6 @@ def build_http_user_day_features(domain_daily, warmup_days=WARMUP_DAYS, trailing
             "new_domains": series.values, "new_domains_trailing": trailing.values,
         }))
     calendar = pd.concat(pieces, ignore_index=True)
-
-    calendar = calendar.merge(
-        active[["user", "day", "http_volume_deviation"]], on=["user", "day"], how="left"
-    )
-    calendar["http_volume_deviation"] = calendar["http_volume_deviation"].fillna(0.0)
 
     calendar["http_new_domains_today"] = np.log1p(calendar["new_domains"])
     calendar["http_new_domains_7d"] = np.log1p(calendar["new_domains_trailing"])

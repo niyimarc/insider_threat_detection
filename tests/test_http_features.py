@@ -74,45 +74,14 @@ def test_users_are_independent():
     assert _day(table, "U2", "2010-02-01")["http_new_domains_today"] > 0
 
 
-def test_volume_deviation_flags_a_heavy_day_and_is_leave_one_out():
-    rows = [("U1", d.strftime("%Y-%m-%d"), "a.com", 10 + (i % 2)) for i, d in
-            enumerate(pd.date_range("2010-01-01", periods=30))]
-    rows.append(("U1", "2010-02-01", "a.com", 200))
-    table = build_http_user_day_features(_domain_daily(rows))
-    heavy = _day(table, "U1", "2010-02-01")["http_volume_deviation"]
-    normal = _day(table, "U1", "2010-01-10")["http_volume_deviation"]
-    assert heavy > 2.5         # ~log(201/11.5): far above the user's usual volume
-    # An ordinary day stays close to 0. (It is not exactly 0: its baseline
-    # is the mean of the OTHER days, which includes the one heavy day.)
-    assert abs(normal) < 0.6
-    assert heavy > 5 * abs(normal)
-
-
-def test_volume_deviation_stays_bounded_for_users_with_perfectly_regular_counts():
-    # Regression: the z-score version divided by a ~zero standard deviation
-    # and produced values around +/-1e7 here.
-    rows = [("U1", d.strftime("%Y-%m-%d"), "a.com", 95) for d in pd.date_range("2010-01-01", periods=40)]
-    rows.append(("U1", "2010-03-01", "a.com", 94))
-    rows.append(("U1", "2010-03-02", "a.com", 300))
-    table = build_http_user_day_features(_domain_daily(rows))
-    values = table["http_volume_deviation"]
-    assert values.abs().max() <= 4.0
-    assert abs(_day(table, "U1", "2010-03-01")["http_volume_deviation"]) < 0.1
-    assert abs(_day(table, "U1", "2010-01-15")["http_volume_deviation"]) < 0.1
-    assert _day(table, "U1", "2010-03-02")["http_volume_deviation"] > 0.9  # the 300-visit day stands out
-
-
-def test_volume_deviation_is_clipped():
-    rows = [("U1", d.strftime("%Y-%m-%d"), "a.com", 1) for d in pd.date_range("2010-01-01", periods=30)]
-    rows.append(("U1", "2010-02-15", "a.com", 100000))
-    table = build_http_user_day_features(_domain_daily(rows))
-    assert _day(table, "U1", "2010-02-15")["http_volume_deviation"] == 4.0
-
-
-def test_volume_deviation_is_neutral_with_too_few_days():
-    rows = [("U1", "2010-01-01", "a.com", 5), ("U1", "2010-01-02", "a.com", 500)]
-    table = build_http_user_day_features(_domain_daily(rows))
-    assert (table["http_volume_deviation"] == 0).all()
+def test_daily_visit_volume_does_not_influence_any_feature():
+    # Daily http volume is constant per user in CERT r4.2, so no feature
+    # may depend on it (it could only encode generation artifacts).
+    quiet = _steady_user(days=40)
+    loud = [(u, d, dom, v * 50) for (u, d, dom, v) in quiet]
+    a = build_http_user_day_features(_domain_daily(quiet))
+    b = build_http_user_day_features(_domain_daily(loud))
+    pd.testing.assert_frame_equal(a, b)
 
 
 def test_inactive_calendar_days_get_neutral_values():
@@ -120,7 +89,7 @@ def test_inactive_calendar_days_get_neutral_values():
             ("U1", "2010-01-09", "a.com", 10), ("U1", "2010-01-10", "a.com", 12)]
     table = build_http_user_day_features(_domain_daily(rows))
     gap_day = _day(table, "U1", "2010-01-03")
-    assert gap_day["http_volume_deviation"] == 0 and gap_day["http_new_domains_today"] == 0
+    assert gap_day["http_new_domains_today"] == 0 and gap_day["http_new_domains_7d"] == 0
 
 
 def test_output_has_exactly_the_registered_columns():
