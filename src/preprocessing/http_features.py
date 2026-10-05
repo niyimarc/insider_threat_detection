@@ -18,8 +18,12 @@ Features (all attached to every file event on that user-day):
                            for the first time ever)
   http_new_domains_7d      the same, summed over the trailing 7 days
                            (today and the 6 days before it)
-  http_volume_deviation    how today's visit count compares to this user's
-                           OTHER browsing days (leave-one-out z-score)
+  http_volume_deviation    log(1 + today's visits) - log(1 + the user's mean
+                           visits on their OTHER browsing days), clipped to
+                           +/-4. 0 = a usual day, +1 = about 2.7x usual.
+                           (An earlier z-score version was discarded: it
+                           blew up to +/-1e7 for users with very regular
+                           daily counts.)
 
 Rules that keep this leak-free:
   * No labels, no answer key, no hand-made domain categories ("job
@@ -50,7 +54,7 @@ HTTP_FEATURE_COLUMNS = (
 WARMUP_DAYS = 14
 TRAILING_DAYS = 7
 MIN_ACTIVE_DAYS_FOR_DEVIATION = 3
-STD_FLOOR = 1e-6
+MAX_ABS_VOLUME_DEVIATION = 4.0
 
 
 def load_http_domain_daily(processed_dir):
@@ -92,16 +96,18 @@ def build_http_user_day_features(domain_daily, warmup_days=WARMUP_DAYS, trailing
     active = active.merge(new_per_day, on=["user", "day"], how="left")
     active["new_domains"] = active["new_domains"].fillna(0.0)
 
-    # --- leave-one-out z-score of the visit count over the user's active days ---
+    # --- leave-one-out log-ratio of the visit count to the user's usual day ---
+    # A ratio (not a z-score): dividing by the user's own standard
+    # deviation explodes for users whose daily counts barely vary (a
+    # one-visit difference over a ~1e-6 deviation), and it wrecks the
+    # scaler downstream. The log-ratio is bounded and needs no variance.
     n = active.groupby("user")["visits"].transform("count")
     s = active.groupby("user")["visits"].transform("sum")
-    q = active.assign(sq=active["visits"] ** 2).groupby("user")["sq"].transform("sum")
     m = n - 1
     safe_m = m.where(m > 0, np.nan)
     loo_mean = (s - active["visits"]) / safe_m
-    loo_var = ((q - active["visits"] ** 2) / safe_m) - loo_mean ** 2
-    loo_std = np.sqrt(loo_var.clip(lower=0)).clip(lower=STD_FLOOR)
-    deviation = (active["visits"] - loo_mean) / loo_std
+    deviation = np.log1p(active["visits"]) - np.log1p(loo_mean)
+    deviation = deviation.clip(lower=-MAX_ABS_VOLUME_DEVIATION, upper=MAX_ABS_VOLUME_DEVIATION)
     deviation = deviation.where(n >= MIN_ACTIVE_DAYS_FOR_DEVIATION, 0.0)
     active["http_volume_deviation"] = deviation.replace([np.inf, -np.inf], 0.0).fillna(0.0)
 

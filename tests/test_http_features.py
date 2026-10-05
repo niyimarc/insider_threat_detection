@@ -81,10 +81,32 @@ def test_volume_deviation_flags_a_heavy_day_and_is_leave_one_out():
     table = build_http_user_day_features(_domain_daily(rows))
     heavy = _day(table, "U1", "2010-02-01")["http_volume_deviation"]
     normal = _day(table, "U1", "2010-01-10")["http_volume_deviation"]
-    assert heavy > 10          # far above the user's usual volume
-    assert abs(normal) < 3     # an ordinary day stays ordinary
-    # leave-one-out: the heavy day's own value is not in its own baseline
-    # (if it were, the z-score of 200 would be capped well below this)
+    assert heavy > 2.5         # ~log(201/11.5): far above the user's usual volume
+    # An ordinary day stays close to 0. (It is not exactly 0: its baseline
+    # is the mean of the OTHER days, which includes the one heavy day.)
+    assert abs(normal) < 0.6
+    assert heavy > 5 * abs(normal)
+
+
+def test_volume_deviation_stays_bounded_for_users_with_perfectly_regular_counts():
+    # Regression: the z-score version divided by a ~zero standard deviation
+    # and produced values around +/-1e7 here.
+    rows = [("U1", d.strftime("%Y-%m-%d"), "a.com", 95) for d in pd.date_range("2010-01-01", periods=40)]
+    rows.append(("U1", "2010-03-01", "a.com", 94))
+    rows.append(("U1", "2010-03-02", "a.com", 300))
+    table = build_http_user_day_features(_domain_daily(rows))
+    values = table["http_volume_deviation"]
+    assert values.abs().max() <= 4.0
+    assert abs(_day(table, "U1", "2010-03-01")["http_volume_deviation"]) < 0.1
+    assert abs(_day(table, "U1", "2010-01-15")["http_volume_deviation"]) < 0.1
+    assert _day(table, "U1", "2010-03-02")["http_volume_deviation"] > 0.9  # the 300-visit day stands out
+
+
+def test_volume_deviation_is_clipped():
+    rows = [("U1", d.strftime("%Y-%m-%d"), "a.com", 1) for d in pd.date_range("2010-01-01", periods=30)]
+    rows.append(("U1", "2010-02-15", "a.com", 100000))
+    table = build_http_user_day_features(_domain_daily(rows))
+    assert _day(table, "U1", "2010-02-15")["http_volume_deviation"] == 4.0
 
 
 def test_volume_deviation_is_neutral_with_too_few_days():
