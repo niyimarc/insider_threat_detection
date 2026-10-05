@@ -21,7 +21,7 @@ def test_saved_config_records_groups_and_columns(tmp_path):
     with open(path) as f:
         saved = json.load(f)
 
-    assert saved["enabled_groups"] == ["file", "device", "logon"]
+    assert saved["enabled_groups"] == ["file", "device", "logon", "http"]
     assert saved["numeric_columns"] == get_numeric_feature_columns()
 
 
@@ -45,7 +45,7 @@ def test_verify_raises_when_column_order_changed_even_if_the_set_is_identical(tm
     columns = get_numeric_feature_columns()
     swapped = [columns[1], columns[0]] + columns[2:]
     with open(tmp_path / FEATURE_CONFIG_FILENAME, "w") as f:
-        json.dump({"enabled_groups": ["file", "device", "logon"], "numeric_columns": swapped}, f)
+        json.dump({"enabled_groups": ["file", "device", "logon", "http"], "numeric_columns": swapped}, f)
 
     with pytest.raises(RuntimeError, match="Feature configuration mismatch"):
         verify_feature_config(str(tmp_path))

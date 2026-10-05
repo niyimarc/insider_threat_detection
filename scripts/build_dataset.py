@@ -16,6 +16,11 @@ from src.preprocessing.file_features import (
 )
 from src.preprocessing.device_features import add_device_session_features
 from src.preprocessing.logon_features import add_outside_hours_feature
+from src.preprocessing.http_features import (
+    load_http_domain_daily,
+    build_http_user_day_features,
+    add_http_features,
+)
 from src.preprocessing.sessionize import (
     build_all_sessions,
     assign_sessions_to_file_events,
@@ -56,6 +61,12 @@ def build_dataset():
     file_df = add_device_session_features(file_df, device_df)
     # signal group "logon"
     file_df = add_outside_hours_feature(file_df, logon_df)
+    # signal group "http" (from the per-user-day tables made by
+    # scripts/precompute_http_daily.py)
+    http_user_day = build_http_user_day_features(
+        load_http_domain_daily(os.path.join(_PROJECT_ROOT, "data", "processed"))
+    )
+    file_df = add_http_features(file_df, http_user_day)
 
     print("Building sessions...")
     sessions_df = build_all_sessions(logon_df)

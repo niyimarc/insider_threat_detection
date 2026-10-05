@@ -25,6 +25,9 @@ def _toy_events_df():
         "outside_working_hours": [False, False, True, True, True],
         "user_session_volume_deviation": [1.0, 1.0, 1.0, 1.0, 1.0],
         "user_session_frequency_deviation": [1.0, 1.0, 1.0, 1.0, 1.0],
+        "http_new_domains_today": [0.0, 0.0, 0.0, 0.0, 0.0],
+        "http_new_domains_7d": [0.0, 0.0, 0.0, 0.0, 0.0],
+        "http_volume_deviation": [0.0, 0.0, 0.0, 0.0, 0.0],
         "session_is_malicious": [False, False, True, True, True],
     })
 

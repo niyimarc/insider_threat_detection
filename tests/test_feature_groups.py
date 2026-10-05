@@ -35,6 +35,9 @@ def test_default_column_order_matches_the_order_checkpoints_were_trained_with():
         "outside_working_hours",
         "user_session_volume_deviation",
         "user_session_frequency_deviation",
+        "http_new_domains_today",
+        "http_new_domains_7d",
+        "http_volume_deviation",
     ]
 
 
@@ -53,7 +56,7 @@ def test_presence_column_is_registered_in_a_mandatory_group():
 
 
 def test_available_groups_in_order_of_first_appearance():
-    assert available_groups() == ("file", "device", "logon")
+    assert available_groups() == ("file", "device", "logon", "http")
 
 
 def test_selecting_a_subset_keeps_registry_order_and_drops_other_groups():
@@ -69,7 +72,14 @@ def test_selecting_a_subset_keeps_registry_order_and_drops_other_groups():
 
 
 def test_group_order_in_the_request_does_not_change_column_order():
-    assert get_numeric_feature_columns(["logon", "file", "device"]) == get_numeric_feature_columns()
+    assert get_numeric_feature_columns(["http", "logon", "file", "device"]) == get_numeric_feature_columns()
+
+
+def test_http_can_be_ablated_without_changing_the_other_columns():
+    without_http = get_numeric_feature_columns(["file", "device", "logon"])
+    with_http = get_numeric_feature_columns()
+    assert with_http[:len(without_http)] == without_http  # append-only
+    assert not any(c.startswith("http_") for c in without_http)
 
 
 def test_file_group_cannot_be_disabled():
@@ -107,6 +117,7 @@ def test_binary_column_disappears_when_its_group_is_disabled():
 def test_feature_group_of():
     assert feature_group_of("copies_since_device_connect") == "device"
     assert feature_group_of("outside_working_hours") == "logon"
+    assert feature_group_of("http_new_domains_7d") == "http"
     with pytest.raises(KeyError):
         feature_group_of("not_a_feature")
 
