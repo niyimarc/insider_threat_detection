@@ -16,7 +16,7 @@ report exactly like the training seeds of the unsupervised models.
 
 import numpy as np
 
-from src.supervised.models import fit_predict
+from src.supervised.models import fit_model, fit_predict
 
 
 def make_user_folds(users, scenario_by_user, n_folds=5, seed=0):
@@ -62,6 +62,47 @@ def out_of_fold_scores(model_name, day_users, x, y, folds, seed=0):
             raise AssertionError("a user appears in both the training and the test side of a fold")
         scores[test] =fit_predict(model_name, x[train], y[train], x[test], seed=seed)
     return scores
+
+
+def grouped_permutation_scores(model_name, day_users, x, y, folds, group_to_columns, seed=0, n_permutations=5):
+    """
+    Permutation importance by SIGNAL GROUP. For each fold the model is
+    trained on the other folds' users; its held-out rows are scored once
+    as they are (`base`) and again with one group's columns shuffled
+    across the held-out rows (all of a group's columns are shuffled
+    together by the same row permutation, which keeps the group's
+    internal structure and breaks only its link to the label).
+
+    group_to_columns: {group_name: [column indices of x]}
+    Returns (base, permuted): base (n,) out-of-fold scores, and
+    permuted {group: (n_permutations, n)} out-of-fold scores. A large
+    drop in AUROC from base to a group's permuted scores means the model
+    relies on that group.
+    """
+    day_users = np.asarray(day_users)
+    y = np.asarray(y).astype(int)
+    x = np.asarray(x, dtype=float)
+    fold_of_row = np.array([folds[u] for u in day_users])
+    rng = np.random.default_rng(seed)
+    n = len(day_users)
+    base = np.zeros(n, dtype=float)
+    permuted = {g: np.zeros((n_permutations, n), dtype=float) for g in group_to_columns}
+    for fold in sorted(set(fold_of_row.tolist())):
+        test = fold_of_row == fold
+        train = ~test
+        if set(day_users[train].tolist()) & set(day_users[test].tolist()):
+            raise AssertionError("a user appears in both the training and the test side of a fold")
+        predict = fit_model(model_name, x[train], y[train], seed=seed)
+        x_test = x[test]
+        base[test] = predict(x_test)
+        for group, columns in group_to_columns.items():
+            columns = list(columns)
+            for r in range(n_permutations):
+                shuffled = x_test.copy()
+                order = rng.permutation(len(x_test))
+                shuffled[:, columns] = x_test[order][:, columns]
+                permuted[group][r, test] = predict(shuffled)
+    return base, permuted
 
 
 def repeated_out_of_fold_scores(model_name, day_users, x, y, scenario_by_user, n_folds=5, n_repeats=3, seed=0):

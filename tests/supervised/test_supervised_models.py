@@ -92,3 +92,27 @@ def test_same_seed_gives_the_same_scores(model_name):
     a = fit_predict(model_name, x, y, x_test, seed=3)
     b = fit_predict(model_name, x, y, x_test, seed=3)
     assert np.allclose(a, b)
+
+
+@pytest.mark.parametrize("model_name", MODEL_NAMES)
+def test_fit_model_predictor_matches_fit_predict_and_scores_new_rows_consistently(model_name):
+    from src.supervised.models import fit_model
+    x, y = _toy()
+    x_test, _ = _toy(seed=1)
+    predict = fit_model(model_name, x, y, seed=2)
+    assert np.allclose(predict(x_test), fit_predict(model_name, x, y, x_test, seed=2))
+    assert np.allclose(predict(x_test[:7]), predict(x_test)[:7])   # row-wise: no dependence on the batch
+
+
+def test_fit_model_with_a_single_class_predicts_zeros_for_any_input():
+    from src.supervised.models import fit_model
+    predict = fit_model("logistic", np.zeros((5, 2)), np.zeros(5, dtype=int))
+    assert (predict(np.ones((3, 2))) == 0).all()
+
+
+def test_train_medians_and_apply_medians():
+    from src.supervised.models import apply_medians, train_medians
+    medians = train_medians(np.array([[1.0, np.nan], [3.0, np.nan], [np.inf, np.nan]]))
+    assert medians.tolist() == [2.0, 0.0]
+    filled = apply_medians(np.array([[np.nan, 4.0]]), medians)
+    assert filled.tolist() == [[2.0, 4.0]]

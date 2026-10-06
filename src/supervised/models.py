@@ -40,20 +40,29 @@ def balanced_sample_weights(labels):
     return weights.astype(float)
 
 
-def impute_with_train_medians(x_train, x_test):
-    """Replaces NaN/inf in both matrices with the TRAINING columns' medians (0 if a column is all NaN)."""
-    x_train = np.array(x_train, dtype=float, copy=True)
-    x_test = np.array(x_test, dtype=float, copy=True)
-    x_train[~np.isfinite(x_train)] = np.nan
-    x_test[~np.isfinite(x_test)] = np.nan
+def train_medians(x_train):
+    """Per-column medians of the finite training values (0 for a column with none)."""
+    x = np.array(x_train, dtype=float, copy=True)
+    x[~np.isfinite(x)] = np.nan
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", category=RuntimeWarning)  # "All-NaN slice" is handled just below
-        medians = np.nanmedian(x_train, axis=0) if len(x_train) else np.zeros(x_train.shape[1])
-    medians = np.where(np.isfinite(medians), medians, 0.0)
-    for matrix in (x_train, x_test):
-        rows, cols = np.where(np.isnan(matrix))
-        matrix[rows, cols] = medians[cols]
-    return x_train, x_test
+        medians = np.nanmedian(x, axis=0) if len(x) else np.zeros(x.shape[1])
+    return np.where(np.isfinite(medians), medians, 0.0)
+
+
+def apply_medians(x, medians):
+    """A copy of `x` with every NaN/inf replaced by the given (training) column medians."""
+    x = np.array(x, dtype=float, copy=True)
+    x[~np.isfinite(x)] = np.nan
+    rows, cols = np.where(np.isnan(x))
+    x[rows, cols] = medians[cols]
+    return x
+
+
+def impute_with_train_medians(x_train, x_test):
+    """Replaces NaN/inf in both matrices with the TRAINING columns' medians (0 if a column is all NaN)."""
+    medians = train_medians(x_train)
+    return apply_medians(x_train, medians), apply_medians(x_test, medians)
 
 
 def signed_log(x):
@@ -61,31 +70,38 @@ def signed_log(x):
     return np.sign(x) * np.log1p(np.abs(x))
 
 
-def fit_predict(model_name, x_train, y_train, x_test, seed=0):
+def fit_model(model_name, x_train, y_train, seed=0):
     """
-    Trains `model_name` on the training rows and returns scores (float
-    array, length len(x_test)) for the test rows. If the training labels
-    contain a single class there is nothing to learn: returns zeros.
+    Trains `model_name` on the training rows and returns a function
+    `predict(x) -> scores` (float array, higher = more likely malicious)
+    that applies the same training-set imputation and scaling to any new
+    rows. If the training labels contain a single class there is nothing
+    to learn: the predictor returns zeros.
     """
     if model_name not in MODEL_NAMES:
         raise ValueError(f"Unknown supervised model {model_name!r}; choose from {MODEL_NAMES}.")
     y_train = np.asarray(y_train).astype(int)
     if y_train.sum() == 0 or y_train.sum() == len(y_train):
-        return np.zeros(len(x_test), dtype=float)
+        return lambda x: np.zeros(len(x), dtype=float)
 
-    x_train, x_test = impute_with_train_medians(x_train, x_test)
+    medians = train_medians(x_train)
+    a = apply_medians(x_train, medians)
     weights = balanced_sample_weights(y_train)
 
     if model_name == "logistic":
         from sklearn.linear_model import LogisticRegression
         from sklearn.preprocessing import StandardScaler
 
-        a, b = signed_log(x_train), signed_log(x_test)
+        a = signed_log(a)
         scaler = StandardScaler().fit(a)
-        a, b = scaler.transform(a), scaler.transform(b)
         model = LogisticRegression(C=1.0, max_iter=2000, random_state=seed)
-        model.fit(a, y_train, sample_weight=weights)
-        return model.decision_function(b).astype(float)
+        model.fit(scaler.transform(a), y_train, sample_weight=weights)
+
+        def predict(x):
+            b = scaler.transform(signed_log(apply_medians(x, medians)))
+            return model.decision_function(b).astype(float)
+
+        return predict
 
     from sklearn.ensemble import HistGradientBoostingClassifier
 
@@ -98,5 +114,14 @@ def fit_predict(model_name, x_train, y_train, x_test, seed=0):
         early_stopping=False,
         random_state=seed,
     )
-    model.fit(x_train, y_train, sample_weight=weights)
-    return model.predict_proba(x_test)[:, 1].astype(float)
+    model.fit(a, y_train, sample_weight=weights)
+
+    def predict(x):
+        return model.predict_proba(apply_medians(x, medians))[:, 1].astype(float)
+
+    return predict
+
+
+def fit_predict(model_name, x_train, y_train, x_test, seed=0):
+    """Trains on the training rows and scores the test rows (see fit_model)."""
+    return fit_model(model_name, x_train, y_train, seed=seed)(x_test)

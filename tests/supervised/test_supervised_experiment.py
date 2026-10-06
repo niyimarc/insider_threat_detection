@@ -109,3 +109,55 @@ def test_unknown_names_are_rejected():
     with pytest.raises(ValueError):
         run_experiment(table, scenarios, config_names=("everything",))
     assert "all" in GROUP_CONFIGS
+
+
+# ---------------- confound checks ----------------
+
+def test_calendar_only_control_exposes_a_time_confound(experiment):
+    # In the synthetic data every insider's window is the LATER half of the period, so the date alone
+    # reveals the label for insiders: the control must score clearly above chance.
+    results, markdown = experiment
+    models = results["labelings"]["window"]["models"]
+    for model in ("logistic", "gradient_boosting"):
+        assert model_key(model, "calendar_only") in models
+    assert models[model_key("gradient_boosting", "calendar_only")]["auroc"]["mean"] > 0.7
+    assert "Calendar-only control" in markdown and "CONTROL" in markdown
+
+
+def test_within_insider_comparison_uses_only_insiders_and_is_paired_against_the_control(experiment):
+    results, markdown = experiment
+    within = results["within_insider"]
+    assert within is not None
+    assert within["n_sessions"] == 12 * 40                       # the 12 insiders' days only
+    assert within["reference"] == model_key("logistic", "calendar_only")
+    entry = within["models"][model_key("gradient_boosting", "all")]
+    assert entry["auroc"]["mean"] > 0.95
+    assert "auroc_minus_reference" in entry
+    assert "within-insider" in markdown
+
+
+def test_calendar_columns_are_never_inputs_of_the_real_configurations():
+    from src.supervised.dataset import CALENDAR_COLUMNS
+    for config, groups in GROUP_CONFIGS.items():
+        assert not set(CALENDAR_COLUMNS) & set(day_feature_columns(groups))
+
+
+def test_permutation_importance_points_at_the_planted_signal_group(experiment):
+    results, markdown = experiment
+    entry = results["permutation_importance"]["gradient_boosting"]
+    groups = entry["groups"]
+    assert set(groups) == {"file", "device", "logon", "http"}
+    assert groups["http"]["auroc_drop"] > 0.3 and groups["http"]["ci_excludes_zero"] is True
+    for other in ("file", "device", "logon"):
+        assert groups[other]["auroc_drop"] < 0.1
+    assert "Permutation importance by signal group" in markdown
+
+
+def test_importance_is_skipped_when_the_all_signals_configuration_is_not_requested():
+    table, scenarios = _synthetic_day_table()
+    results, markdown = run_experiment(
+        table, scenarios, model_names=("logistic",), config_names=("file",),
+        n_folds=4, n_repeats=1, n_boot=20,
+    )
+    assert results["permutation_importance"] == {}
+    assert "Permutation importance by signal group" not in markdown

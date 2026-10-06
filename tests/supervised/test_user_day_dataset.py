@@ -121,3 +121,11 @@ def test_input_frame_is_not_modified():
     before = events.copy()
     build_user_day_table(events)
     pd.testing.assert_frame_equal(events, before)
+
+
+def test_calendar_controls_are_deterministic_functions_of_the_date():
+    from src.supervised.dataset import CALENDAR_COLUMNS, add_calendar_controls
+    table = add_calendar_controls(build_user_day_table(_events()))
+    assert table["calendar_day_index"].tolist() == [0.0, 1.0, 0.0]        # 2010-06-01 is the earliest day
+    assert table["calendar_day_of_week"].tolist() == [1.0, 2.0, 1.0]      # Tue, Wed, Tue
+    assert not set(CALENDAR_COLUMNS) & set(day_feature_columns(available_groups()))

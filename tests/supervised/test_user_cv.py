@@ -97,3 +97,41 @@ def test_repeats_use_different_fold_assignments(monkeypatch):
     assert matrix.shape == (3, len(day_users))
     # repeat r passes seed 10 + r to the model fits; each fold of repeat r got that seed
     assert set(np.unique(matrix[0])) == {10.0} and set(np.unique(matrix[2])) == {12.0}
+
+
+def test_group_permutation_only_changes_scores_of_models_that_use_that_group(monkeypatch):
+    # fake model: the score is column 0 only
+    monkeypatch.setattr(cv, "fit_model", lambda model_name, x_train, y_train, seed=0: (lambda x: x[:, 0].copy()))
+    insiders, users = _users()
+    day_users = np.repeat(users, 5)
+    rng = np.random.default_rng(0)
+    x = rng.normal(size=(len(day_users), 3))
+    y = np.zeros(len(day_users), dtype=int)
+    folds = make_user_folds(users, insiders, 4, seed=0)
+    base, permuted = cv.grouped_permutation_scores(
+        "logistic", day_users, x, y, folds, {"uses_it": [0], "ignored": [1, 2]}, seed=1, n_permutations=3,
+    )
+    assert np.allclose(base, x[:, 0])
+    assert np.allclose(permuted["ignored"], base)                  # shuffling unused columns changes nothing
+    assert not np.allclose(permuted["uses_it"], base)               # shuffling the used column does
+    # a shuffle stays inside the held-out fold: each fold's multiset of values is unchanged
+    fold_of_row = np.array([folds[u] for u in day_users])
+    for fold in range(4):
+        rows = fold_of_row == fold
+        assert np.allclose(np.sort(permuted["uses_it"][0, rows]), np.sort(base[rows]))
+
+
+def test_group_permutation_never_mixes_training_and_test_users(monkeypatch):
+    seen = []
+
+    def fake_fit_model(model_name, x_train, y_train, seed=0):
+        seen.append(len(x_train))
+        return lambda x: np.zeros(len(x))
+
+    monkeypatch.setattr(cv, "fit_model", fake_fit_model)
+    insiders, users = _users()
+    day_users = np.repeat(users, 3)
+    x = np.zeros((len(day_users), 2))
+    y = np.zeros(len(day_users), dtype=int)
+    cv.grouped_permutation_scores("logistic", day_users, x, y, make_user_folds(users, insiders, 4), {"g": [0]})
+    assert len(seen) == 4 and all(0 < n < len(day_users) for n in seen)

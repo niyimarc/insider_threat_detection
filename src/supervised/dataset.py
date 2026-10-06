@@ -92,6 +92,25 @@ def build_user_day_table(events_df):
     return table
 
 
+# CONTROL columns, never model inputs for the real configurations: they encode
+# only WHEN a day happened. A model that scores well on these alone is
+# recognising the calendar, not behaviour (see experiment.py).
+CALENDAR_COLUMNS = ("calendar_day_index", "calendar_day_of_week")
+
+
+def add_calendar_controls(day_table):
+    """
+    Adds `calendar_day_index` (days since the earliest day in the table)
+    and `calendar_day_of_week` (0 = Monday). A deterministic function of
+    the date, so it carries no information from any other row.
+    """
+    table = day_table.copy()
+    days = pd.to_datetime(table["day"])
+    table["calendar_day_index"] = (days - days.min()).dt.days.astype(float)
+    table["calendar_day_of_week"] = days.dt.dayofweek.astype(float)
+    return table
+
+
 def day_feature_columns(groups):
     """
     Day-table input columns for the given signal groups, in registry

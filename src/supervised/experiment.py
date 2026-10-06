@@ -1,8 +1,8 @@
 """
 The supervised experiment, as one function: out-of-fold scores for every
-(model, signal-group configuration), the two no-training reference
-heuristics, and the same user-level bootstrap report the unsupervised
-evaluation uses.
+(model, signal-group configuration), the no-training reference
+heuristics, the confound checks, and the same user-level bootstrap report
+the unsupervised evaluation uses.
 
 Protocol (state all of this in the write-up):
   * unit: the user-day (see src/supervised/dataset.py)
@@ -14,15 +14,46 @@ Protocol (state all of this in the write-up):
   * the HTTP CONTRIBUTION is a paired test: the same model with and without
     the http signal, on the same resamples
   * the reference heuristics are selected on dev data, so they are optimistic
+
+CONFOUND CHECKS (so a good score cannot be mistaken for detection when it
+is something else):
+  * CALENDAR-ONLY CONTROL: the same models given only the date (day index
+    and weekday). If that scores well, the window labels are recoverable
+    from WHEN a day happened (insider windows sit in particular stretches
+    of the dataset), and the real scores cannot be read as behaviour.
+  * WITHIN-INSIDER COMPARISON: every model scored on insiders' days only
+    (window days vs the same insiders' other days). This removes
+    "insiders differ from benign users" as an explanation, and is
+    reported next to the calendar-only control, because the time
+    explanation remains possible there.
+  * PERMUTATION IMPORTANCE BY SIGNAL GROUP: how much each group's columns
+    matter to the all-signals model on held-out users.
 Pure given a day table: no file access, testable on synthetic data.
 """
 
 import numpy as np
 
-from src.common.evaluation.bootstrap import make_user_resamples
+from src.common.evaluation.bootstrap import (
+    interval,
+    make_user_resamples,
+    metric_over_resamples,
+    paired_difference,
+    safe_auroc,
+)
 from src.common.evaluation.final_report import evaluate_labeling, format_markdown
-from src.supervised.cross_validation import repeated_out_of_fold_scores
-from src.supervised.dataset import WINDOW_LABEL, day_feature_columns, feature_matrix
+from src.supervised.cross_validation import (
+    grouped_permutation_scores,
+    make_user_folds,
+    repeated_out_of_fold_scores,
+)
+from src.supervised.dataset import (
+    CALENDAR_COLUMNS,
+    WINDOW_LABEL,
+    add_calendar_controls,
+    day_feature_columns,
+    feature_matrix,
+    group_of_day_column,
+)
 from src.supervised.models import DISPLAY_NAMES, MODEL_NAMES
 
 WINDOW = "window"
@@ -38,6 +69,7 @@ GROUP_CONFIGS = {
 }
 NO_HTTP_CONFIG = "file+device+logon"
 ALL_CONFIG = "all"
+CALENDAR_CONTROL = "calendar_only"
 
 HEURISTICS = {
     "single_feature_http": ("http_offbaseline_share_7d__mean", "Heuristic: day mean of http_offbaseline_share_7d"),
@@ -57,10 +89,53 @@ LABELING_DESCRIPTIONS = {
         "http and device features measure, so it favours those features by construction."
     ),
 }
+WITHIN_INSIDER_DESCRIPTION = (
+    "Only the INSIDERS' user-days are scored: positives are an insider's days inside their window, "
+    "negatives are the SAME insiders' other days. Benign users are excluded, so 'insiders differ "
+    "from benign users' cannot explain a score. The calendar-only control is the reference: a model "
+    "that does not beat it is not showing more than WHEN the window days happened."
+)
 
 
 def model_key(model_name, config_name):
     return f"{model_name}[{config_name}]"
+
+
+def _column_indices_by_group(columns):
+    by_group = {}
+    for i, column in enumerate(columns):
+        by_group.setdefault(group_of_day_column(column), []).append(i)
+    return by_group
+
+
+def _permutation_importance(table, scenario_by_user, model_names, labels, resamples, n_folds, seed, n_permutations):
+    """{model: {group: {"auroc_drop": ..., ci...}}} for the all-signals configuration."""
+    columns = day_feature_columns(GROUP_CONFIGS[ALL_CONFIG])
+    x = feature_matrix(table, columns)
+    group_to_columns = _column_indices_by_group(columns)
+    users = table["user"].to_numpy()
+    folds = make_user_folds(users, scenario_by_user, n_folds=n_folds, seed=seed)
+    importance = {}
+    for model in model_names:
+        base, permuted = grouped_permutation_scores(
+            model, users, x, labels, folds, group_to_columns, seed=seed, n_permutations=n_permutations,
+        )
+        base_values = metric_over_resamples(labels, base, resamples, safe_auroc)
+        per_group = {}
+        for group, matrix in permuted.items():
+            drop = paired_difference(base_values, metric_over_resamples(labels, matrix, resamples, safe_auroc))
+            low, high = interval(drop)
+            per_group[group] = {
+                "auroc_drop": float(np.nanmean(drop)) if np.isfinite(drop).any() else float("nan"),
+                "ci_low": low,
+                "ci_high": high,
+                "ci_excludes_zero": bool(low > 0 or high < 0),
+            }
+        importance[model] = {
+            "base_auroc": float(safe_auroc(labels, base)),
+            "groups": per_group,
+        }
+    return importance
 
 
 def run_experiment(
@@ -73,6 +148,7 @@ def run_experiment(
     n_boot=500,
     seed=0,
     reference=DEFAULT_REFERENCE,
+    n_permutations=5,
 ):
     """
     day_table: build_user_day_table output plus `answer_key_label`.
@@ -85,6 +161,7 @@ def run_experiment(
         if name not in GROUP_CONFIGS:
             raise ValueError(f"Unknown group configuration {name!r}; choose from {list(GROUP_CONFIGS)}")
 
+    day_table = add_calendar_controls(day_table)
     users = day_table["user"].to_numpy()
     scenario_of_day = np.array([int(scenario_by_user.get(u, 0)) for u in users])
     insider_mask = np.array([u in scenario_by_user for u in users])
@@ -99,13 +176,19 @@ def run_experiment(
     for model in model_names:
         for config in config_names:
             columns = day_feature_columns(GROUP_CONFIGS[config])
-            x = feature_matrix(day_table, columns)
             key = model_key(model, config)
             score_matrices[key] = repeated_out_of_fold_scores(
-                model, users, x, y_train, scenario_by_user,
+                model, users, feature_matrix(day_table, columns), y_train, scenario_by_user,
                 n_folds=n_folds, n_repeats=n_repeats, seed=seed,
             )
             display_names[key] = f"{DISPLAY_NAMES[model]}, signals: {config}"
+        # the control: the SAME model, given only the date
+        key = model_key(model, CALENDAR_CONTROL)
+        score_matrices[key] = repeated_out_of_fold_scores(
+            model, users, feature_matrix(day_table, CALENDAR_COLUMNS), y_train, scenario_by_user,
+            n_folds=n_folds, n_repeats=n_repeats, seed=seed,
+        )
+        display_names[key] = f"CONTROL: {DISPLAY_NAMES[model]}, calendar only (date and weekday)"
 
     labelings = {WINDOW: y_train}
     if ANSWER_KEY_COLUMN in day_table.columns:
@@ -125,6 +208,8 @@ def run_experiment(
         "group_configs": {k: list(v) for k, v in GROUP_CONFIGS.items() if k in config_names},
         "labelings": {},
         "http_contribution": {},
+        "within_insider": None,
+        "permutation_importance": {},
     }
     markdown = []
     for name, labels in labelings.items():
@@ -156,6 +241,60 @@ def run_experiment(
                 lines.append(f"- {DISPLAY_NAMES[model]}: {d['mean']:+.3f} [{d['ci_low']:+.3f}, {d['ci_high']:+.3f}]{mark}")
             lines += ["", "`*` = the interval excludes 0.", ""]
             markdown.append("\n".join(lines))
+
+    # ---- confound check 1+2: calendar-only control, and the within-insider comparison ----
+    markdown.append("## Confound checks\n")
+    control_models = [m for m in model_names]
+    control_lines = ["#### Calendar-only control (window labelling)", ""]
+    window_models = results["labelings"][WINDOW]["models"]
+    for model in control_models:
+        auroc = window_models[model_key(model, CALENDAR_CONTROL)]["auroc"]
+        control_lines.append(
+            f"- {DISPLAY_NAMES[model]} given only the date: AUROC {auroc['mean']:.3f} "
+            f"[{auroc['ci_low']:.3f}, {auroc['ci_high']:.3f}]"
+        )
+    control_lines += [
+        "",
+        "Around 0.5 means the date alone does not reveal the window labels. A clearly higher value means "
+        "the labels can be recovered from WHEN a day happened, and the behavioural scores above must be "
+        "read against it.",
+        "",
+    ]
+    markdown.append("\n".join(control_lines))
+
+    in_labels = y_train[insider_mask]
+    if insider_mask.sum() and 0 < in_labels.sum() < len(in_labels):
+        in_resamples = make_user_resamples(users[insider_mask], n_boot=n_boot, seed=0)
+        in_matrices = {k: np.atleast_2d(m)[:, insider_mask] for k, m in score_matrices.items()}
+        control_ref = model_key(control_models[0], CALENDAR_CONTROL) if control_models else None
+        results["within_insider"] = evaluate_labeling(
+            in_labels, scenario_of_day[insider_mask], np.ones(int(insider_mask.sum()), dtype=bool),
+            in_matrices, in_resamples, reference=control_ref, per_scenario=False,
+        )
+        markdown.append(format_markdown("within-insider (window labels)", WITHIN_INSIDER_DESCRIPTION,
+                                        results["within_insider"], display_names, unit="insider user-days"))
+
+    # ---- confound check 3: permutation importance by signal group ----
+    if ALL_CONFIG in config_names:
+        importance = _permutation_importance(
+            day_table, scenario_by_user, model_names, y_train, resamples, n_folds, seed, n_permutations,
+        )
+        results["permutation_importance"] = importance
+        lines = ["#### Permutation importance by signal group "
+                 "(all-signals model, held-out users, window labelling)", "",
+                 f"AUROC lost when one group's columns are shuffled across the held-out days "
+                 f"({n_permutations} shuffles, paired 95% user-level interval). Larger = the model relies on "
+                 "that group more.", ""]
+        for model, entry in importance.items():
+            lines.append(f"{DISPLAY_NAMES[model]} (AUROC with nothing shuffled: {entry['base_auroc']:.3f})")
+            lines.append("")
+            for group, d in entry["groups"].items():
+                mark = " *" if d["ci_excludes_zero"] else ""
+                lines.append(f"- {group}: {d['auroc_drop']:+.3f} [{d['ci_low']:+.3f}, {d['ci_high']:+.3f}]{mark}")
+            lines.append("")
+        lines += ["`*` = the interval excludes 0. Groups that share information can hide each other "
+                  "(shuffling one is partly compensated by another), so small drops do not prove a group is useless.", ""]
+        markdown.append("\n".join(lines))
 
     markdown.append(
         "_Development-partition numbers (the 50 dev users), cross-validated by user. Features and the "

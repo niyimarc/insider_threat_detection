@@ -35,8 +35,12 @@ def _seed_mean_and_spread(labels, score_matrix, metric):
     return float(np.mean(per_run)), float(np.std(per_run)) if len(per_run) > 1 else 0.0
 
 
-def evaluate_labeling(labels, scenario_of_session, insider_mask, score_matrices, resamples, reference=None):
+def evaluate_labeling(labels, scenario_of_session, insider_mask, score_matrices, resamples, reference=None,
+                      per_scenario=True):
     """
+    per_scenario=False skips the per-scenario AUROC (use it for subsets,
+    such as insiders only, where "that scenario vs benign users" is not defined).
+
     labels:               (n_sessions,) 0/1 under this labelling
     scenario_of_session:  (n_sessions,) scenario number of the session's user, 0 for non-insiders
     insider_mask:         (n_sessions,) True for sessions of insider users
@@ -70,15 +74,15 @@ def evaluate_labeling(labels, scenario_of_session, insider_mask, score_matrices,
             low, high = interval(values)
             entry[metric_name] = {"mean": mean, "std_over_runs": spread, "ci_low": low, "ci_high": high}
 
-        per_scenario = {}
-        for s in (1, 2, 3):
+        scenario_auroc = {}
+        for s in (1, 2, 3) if per_scenario else ():
             keep = (~insider_mask) | ((scenario_of_session == s) & (labels == 1))
             if ((scenario_of_session == s) & (labels == 1)).sum() == 0:
-                per_scenario[s] = None
+                scenario_auroc[s] = None
                 continue
             per_run = [safe_auroc((labels == 1)[keep], run[keep]) for run in matrix]
-            per_scenario[s] = float(np.mean(per_run))
-        entry["per_scenario_auroc"] = per_scenario
+            scenario_auroc[s] = float(np.mean(per_run))
+        entry["per_scenario_auroc"] = scenario_auroc
         result["models"][name] = entry
 
     if reference is not None and reference in score_matrices:
