@@ -18,6 +18,15 @@ Features (all attached to every file event on that user-day):
                            for the first time ever)
   http_new_domains_7d      the same, summed over the trailing 7 days
                            (today and the 6 days before it)
+  http_offbaseline_share_7d  share of the trailing 7 days' visits that go to
+                           domains the user first visited AFTER their
+                           14-day warm-up (0..1). Unlike the two novelty
+                           counts, it stays high while the user keeps going
+                           back to such a domain. Added after a day-level
+                           check on the DEVELOPMENT partition
+                           (scripts/diagnose_http_daylevel.py) showed it
+                           separates better than novelty; it has not been
+                           validated on the locked partition yet.
 NO VOLUME FEATURE, deliberately. An http_volume_deviation feature was
 built and then REMOVED after checking the 136 training users: every one
 of them has an (almost) perfectly constant number of http visits per
@@ -39,7 +48,7 @@ Rules that keep this leak-free:
     establishing their baseline: domains first seen then do not count as
     new (otherwise every domain would be "new" at the start of the log).
 
-A file event on a day with no recorded browsing gets 0.0 for both
+A file event on a day with no recorded browsing gets 0.0 for all three
 (the neutral value).
 """
 
@@ -49,6 +58,7 @@ import pandas as pd
 HTTP_FEATURE_COLUMNS = (
     "http_new_domains_today",
     "http_new_domains_7d",
+    "http_offbaseline_share_7d",
 )
 
 WARMUP_DAYS = 14
@@ -86,29 +96,48 @@ def build_http_user_day_features(domain_daily, warmup_days=WARMUP_DAYS, trailing
     first_day_by_user = df.groupby("user")["day"].min().rename("user_first_day")
     first_seen = df.groupby(["user", "domain"], sort=False)["day"].min().rename("first_seen").reset_index()
     first_seen = first_seen.join(first_day_by_user, on="user")
-    first_seen = first_seen[first_seen["first_seen"] > first_seen["user_first_day"] + pd.Timedelta(days=warmup_days)]
+    first_seen["offbaseline"] = (
+        first_seen["first_seen"] > first_seen["user_first_day"] + pd.Timedelta(days=warmup_days)
+    )
     new_per_day = (
-        first_seen.groupby(["user", "first_seen"]).size().rename("new_domains").reset_index()
+        first_seen[first_seen["offbaseline"]]
+        .groupby(["user", "first_seen"]).size().rename("new_domains").reset_index()
         .rename(columns={"first_seen": "day"})
     )
     active = active.merge(new_per_day, on=["user", "day"], how="left")
     active["new_domains"] = active["new_domains"].fillna(0.0)
 
+    # Visits to "off-baseline" domains per day: domains the user first
+    # visited AFTER their warm-up period. Unlike novelty (which fires only
+    # on the first visit), this keeps counting while the user keeps going
+    # back to such a domain.
+    flagged = df.merge(first_seen[["user", "domain", "offbaseline"]], on=["user", "domain"])
+    off_per_day = (
+        flagged.assign(off_visits=flagged["visits"] * flagged["offbaseline"])
+        .groupby(["user", "day"], sort=False)["off_visits"].sum().reset_index()
+    )
+    active = active.merge(off_per_day, on=["user", "day"], how="left")
+    active["off_visits"] = active["off_visits"].fillna(0.0)
+
     # --- trailing-window novelty over CALENDAR days (inactive days count as 0) ---
     pieces = []
     for user, g in active.groupby("user", sort=False):
-        series = g.set_index("day")["new_domains"].sort_index()
-        full_index = pd.date_range(series.index.min(), series.index.max(), freq="D")
-        series = series.reindex(full_index, fill_value=0.0)
-        trailing = series.rolling(window=trailing_days, min_periods=1).sum()
+        g = g.set_index("day").sort_index()[["new_domains", "visits", "off_visits"]]
+        full_index = pd.date_range(g.index.min(), g.index.max(), freq="D")
+        g = g.reindex(full_index, fill_value=0.0)
+        trailing = g.rolling(window=trailing_days, min_periods=1).sum()
+        share = (trailing["off_visits"] / trailing["visits"].where(trailing["visits"] > 0)).fillna(0.0)
         pieces.append(pd.DataFrame({
             "user": user, "day": full_index,
-            "new_domains": series.values, "new_domains_trailing": trailing.values,
+            "new_domains": g["new_domains"].values,
+            "new_domains_trailing": trailing["new_domains"].values,
+            "offbaseline_share": share.values,
         }))
     calendar = pd.concat(pieces, ignore_index=True)
 
     calendar["http_new_domains_today"] = np.log1p(calendar["new_domains"])
     calendar["http_new_domains_7d"] = np.log1p(calendar["new_domains_trailing"])
+    calendar["http_offbaseline_share_7d"] = calendar["offbaseline_share"]
 
     return calendar[["user", "day", *HTTP_FEATURE_COLUMNS]]
 

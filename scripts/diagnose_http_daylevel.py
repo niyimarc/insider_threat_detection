@@ -11,12 +11,10 @@ it.
 The answer key is used ONLY to label days for this evaluation. No feature
 is built from it (no domain lists, no thresholds).
 
-Scores compared (higher = more anomalous):
-  http_new_domains_today, http_new_domains_7d     the registered features
-  offbaseline_share_7d  CANDIDATE, not registered: share of the trailing
-        7 days' visits that go to domains first seen AFTER the user's
-        14-day warm-up. Unlike novelty it stays high while a user keeps
-        visiting a new site, not only on the first visit.
+Scores compared (higher = more anomalous): the three registered http
+features (src/preprocessing/http_features.py). The first run of this
+script, on the two novelty features plus a then-unregistered candidate,
+is what led to registering http_offbaseline_share_7d.
 
 Comparisons (AUROC, 0.5 = no separation):
   vs benign   injected days vs every day of the benign dev users
@@ -44,7 +42,7 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics import roc_auc_score
 
-from src.preprocessing.http_features import WARMUP_DAYS, TRAILING_DAYS, build_http_user_day_features
+from src.preprocessing.http_features import build_http_user_day_features
 from src.preprocessing.labeling import load_malicious_windows
 
 PROCESSED = os.path.join(_PROJECT_ROOT, "data", "processed")
@@ -67,28 +65,6 @@ def load_injected_http_days():
     return pd.DataFrame(rows, columns=["user", "day", "scenario"]).drop_duplicates()
 
 
-def offbaseline_share_7d(domain_daily):
-    """Candidate feature: trailing-7-day share of visits to post-warm-up domains."""
-    df = domain_daily[["user", "day", "domain", "visits"]].copy()
-    df["day"] = pd.to_datetime(df["day"]).dt.normalize()
-    first_day = df.groupby("user")["day"].min().rename("user_first_day")
-    first_seen = df.groupby(["user", "domain"])["day"].min().rename("first_seen").reset_index().join(first_day, on="user")
-    first_seen["offbaseline"] = first_seen["first_seen"] > first_seen["user_first_day"] + pd.Timedelta(days=WARMUP_DAYS)
-    df = df.merge(first_seen[["user", "domain", "offbaseline"]], on=["user", "domain"])
-    df["off_visits"] = df["visits"] * df["offbaseline"]
-    daily = df.groupby(["user", "day"])[["visits", "off_visits"]].sum().reset_index()
-
-    pieces = []
-    for user, g in daily.groupby("user", sort=False):
-        g = g.set_index("day").sort_index()[["visits", "off_visits"]]
-        idx = pd.date_range(g.index.min(), g.index.max(), freq="D")
-        g = g.reindex(idx, fill_value=0)
-        roll = g.rolling(TRAILING_DAYS, min_periods=1).sum()
-        share = (roll["off_visits"] / roll["visits"].where(roll["visits"] > 0)).fillna(0.0)
-        pieces.append(pd.DataFrame({"user": user, "day": idx, "offbaseline_share_7d": share.values}))
-    return pd.concat(pieces, ignore_index=True)
-
-
 def auroc(pos_values, neg_values):
     if len(pos_values) == 0 or len(neg_values) == 0:
         return float("nan")
@@ -109,13 +85,12 @@ def main():
 
     domain_daily = pd.read_parquet(os.path.join(PROCESSED, "http_domain_daily.parquet"))
     domain_daily = domain_daily[domain_daily["user"].isin(dev_users)]
-    table = build_http_user_day_features(domain_daily).merge(
-        offbaseline_share_7d(domain_daily), on=["user", "day"], how="left")
+    table = build_http_user_day_features(domain_daily)
 
     injected = load_injected_http_days()
     injected = injected[injected["user"].isin(dev_insiders)]
-    table = table.merge(injected.assign(injected=True)[["user", "day", "injected"]], on=["user", "day"], how="left")
-    table["injected"] = table["injected"].fillna(False).astype(bool)
+    injected_keys = set(zip(injected["user"], injected["day"]))
+    table["injected"] = [(u, d) in injected_keys for u, d in zip(table["user"], table["day"])]
     table["scenario"] = table["user"].map(lambda u: window_by_user.get(u, {}).get("scenario", 0))
     table["in_window"] = [
         (u in window_by_user) and (window_by_user[u]["start"] <= d <= window_by_user[u]["end"])
@@ -127,7 +102,7 @@ def main():
     print(f"share of in-window insider days that are injected days: "
           f"{table.loc[table['in_window'], 'injected'].mean():.1%}")
 
-    features = ["http_new_domains_today", "http_new_domains_7d", "offbaseline_share_7d"]
+    features = ["http_new_domains_today", "http_new_domains_7d", "http_offbaseline_share_7d"]
     benign_days = table[table["user"].isin(dev_benign)]
     print(f"\n{'scenario / feature':44s} {'n_inj':>6s} {'vs benign':>10s} {'vs own':>8s} {'vs own-win':>11s}")
     print("-" * 82)

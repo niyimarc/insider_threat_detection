@@ -57,6 +57,7 @@ NUMERIC_FEATURE_REGISTRY = (
     ("user_session_frequency_deviation", "file"),
     ("http_new_domains_today", "http"),
     ("http_new_domains_7d", "http"),
+    ("http_offbaseline_share_7d", "http"),
 )
 
 # Columns that are already 0/1 flags: not standardised, and summarised

@@ -35,6 +35,7 @@ def _toy_events_df():
         "user_session_frequency_deviation": [1.0, 1.0, 1.0, 1.0, 1.0],
         "http_new_domains_today": [0.0, 0.0, 0.0, 0.0, 0.0],
         "http_new_domains_7d": [0.0, 0.0, 0.0, 0.0, 0.0],
+        "http_offbaseline_share_7d": [0.0, 0.0, 0.0, 0.0, 0.0],
         "session_is_malicious": [False, False, False, False, False],  # benign-only, like real training data
     })
 

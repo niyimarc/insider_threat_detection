@@ -37,6 +37,7 @@ def test_default_column_order_matches_the_order_checkpoints_were_trained_with():
         "user_session_frequency_deviation",
         "http_new_domains_today",
         "http_new_domains_7d",
+        "http_offbaseline_share_7d",
     ]
 
 
