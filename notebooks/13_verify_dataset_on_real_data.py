@@ -8,8 +8,8 @@ import pandas as pd
 import torch
 from torch.utils.data import DataLoader
 
-from src.training.vocab import build_vocab
-from src.training.dataset import SessionDataset, collate_sessions
+from src.unsupervised.training.vocab import build_vocab
+from src.unsupervised.training.dataset import SessionDataset, collate_sessions
 
 DATA_PATH = os.path.join(_PROJECT_ROOT, "data", "processed", "file_events_processed.parquet")
 

@@ -10,8 +10,8 @@ this script can only ever describe NORMAL browsing -- which is exactly
 what an anomaly detector needs to know -- and cannot be steered by the
 answer key. The answer key is deliberately never opened here.
 
-Needs the small tables from `python scripts/precompute_http_daily.py`
-and the processed dataset from `python scripts/build_dataset.py`.
+Needs the small tables from `python scripts/common/precompute_http_daily.py`
+and the processed dataset from `python scripts/common/build_dataset.py`.
 
 Run from the project root:
     python notebooks/14_explore_http.py

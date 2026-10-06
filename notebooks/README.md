@@ -115,7 +115,7 @@ intervening Logoff" pattern implied by its own readme (screen locks
 are not recorded, only unlocks are, and unlocks are logged as another
 Logon). Finding: confirmed — 103,052 occurrences across 433 of the
 roughly 1,000 users. This directly justifies the session-building logic
-in src/preprocessing/sessionize.py, which tracks open/closed session
+in src/common/preprocessing/sessionize.py, which tracks open/closed session
 state per user rather than naively pairing each Logon with the next
 Logoff chronologically.
 
@@ -130,8 +130,8 @@ full pipeline run are fully explained by natural per-user activity
 variance, not a flaw in the split logic.
 
 ## 13_verify_dataset_on_real_data.py
-Smoke-tests `src/training/dataset.py` (SessionDataset, collate_sessions)
-and `src/training/vocab.py` against the real processed parquet, not just
+Smoke-tests `src/unsupervised/training/dataset.py` (SessionDataset, collate_sessions)
+and `src/unsupervised/training/vocab.py` against the real processed parquet, not just
 the hand-built toy DataFrames used in the unit tests. Builds the
 file_type/file_extension vocabularies from the train split only, then
 reuses them for validation/test, and pulls one real batch through a

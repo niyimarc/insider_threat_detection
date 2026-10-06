@@ -106,7 +106,7 @@ raw/answers/                                   (insiders.csv, r4.2-1/ ...)
 processed/file_events_processed.parquet
 processed/http_domain_daily.parquet, http_hour_daily.parquet
 checkpoints/
-results/                                       (final_evaluation_*.json / .md tables)
+results/unsupervised/                          (final_evaluation_*.json / .md tables)
 ```
 
 **One-off: download the raw data to Drive** (only if `raw/r4.2` is missing; about 4.8 GB download, 10-25 min to extract, keep the tab open)
@@ -147,36 +147,36 @@ If the clone says `destination path already exists`, the folder is already there
 Always from the project root (`%cd /content/project`).
 
 ```
-!python scripts/precompute_http_daily.py     # once; long (reads the 14 GB http.csv); build_dataset needs its output
-!python scripts/build_dataset.py             # after any feature change
-!python scripts/train_models.py              # prints "Training device: cuda" on GPU
-!python scripts/evaluate_models.py           # dev partition by default
+!python scripts/common/precompute_http_daily.py     # once; long (reads the 14 GB http.csv); build_dataset needs its output
+!python scripts/common/build_dataset.py             # after any feature change
+!python scripts/unsupervised/train_models.py              # prints "Training device: cuda" on GPU
+!python scripts/unsupervised/evaluate_models.py           # dev partition by default
 ```
 
 Named runs (use these for ablations and multiple seeds, so runs never overwrite each other). Train and evaluate must get the SAME `INSIDER_CHECKPOINT_DIR`. `INSIDER_REQUIRE_GPU=1` makes training stop immediately if the runtime has no GPU (a reset runtime goes back to CPU, and a CPU run takes many hours):
 
 ```
 # all signal groups, seed 1
-!INSIDER_REQUIRE_GPU=1 INSIDER_CHECKPOINT_DIR=checkpoints/all_seed1 INSIDER_SEED=1 python scripts/train_models.py
-!INSIDER_CHECKPOINT_DIR=checkpoints/all_seed1 python scripts/evaluate_models.py
+!INSIDER_REQUIRE_GPU=1 INSIDER_CHECKPOINT_DIR=checkpoints/all_seed1 INSIDER_SEED=1 python scripts/unsupervised/train_models.py
+!INSIDER_CHECKPOINT_DIR=checkpoints/all_seed1 python scripts/unsupervised/evaluate_models.py
 
 # ablation: without http, seed 1
-!INSIDER_FEATURE_GROUPS=file,device,logon INSIDER_CHECKPOINT_DIR=checkpoints/nohttp_seed1 INSIDER_SEED=1 python scripts/train_models.py
-!INSIDER_FEATURE_GROUPS=file,device,logon INSIDER_CHECKPOINT_DIR=checkpoints/nohttp_seed1 python scripts/evaluate_models.py
+!INSIDER_FEATURE_GROUPS=file,device,logon INSIDER_CHECKPOINT_DIR=checkpoints/nohttp_seed1 INSIDER_SEED=1 python scripts/unsupervised/train_models.py
+!INSIDER_FEATURE_GROUPS=file,device,logon INSIDER_CHECKPOINT_DIR=checkpoints/nohttp_seed1 python scripts/unsupervised/evaluate_models.py
 ```
 
 Each folder gets `feature_config.json` and `run_metadata.json` (seed, versions, git commit). Evaluating with a different feature selection than the run was trained with stops with a clear error.
 
-**Models** are declared once in `src/models/registry.py` (the two autoencoders, the Isolation Forest, and two heuristic baselines that need no training: the single http feature and session length). Training, evaluation and the ensemble loop over that list. `INSIDER_MODELS=lstm_ae,static_iforest` restricts any script to a subset.
+**Models** are declared once in `src/unsupervised/models/registry.py` (the two autoencoders, the Isolation Forest, and two heuristic baselines that need no training: the single http feature and session length). Training, evaluation and the ensemble loop over that list. `INSIDER_MODELS=lstm_ae,static_iforest` restricts any script to a subset.
 
-**The results table** (`scripts/final_evaluation.py`): AUROC/AUPRC averaged over the seeds you pass, with 95% user-level bootstrap intervals, a paired comparison against the single-feature baseline, and BOTH labelings (window and answer-key) side by side. It writes `results/final_evaluation_<partition>_<tag>.json` and `.md`.
+**The results table** (`scripts/unsupervised/final_evaluation.py`): AUROC/AUPRC averaged over the seeds you pass, with 95% user-level bootstrap intervals, a paired comparison against the single-feature baseline, and BOTH labelings (window and answer-key) side by side. It writes `results/unsupervised/final_evaluation_<partition>_<tag>.json` and `.md`.
 
 ```
 # development partition (the default), three seeds of the same configuration
-!python scripts/final_evaluation.py --runs checkpoints/all_seed1 checkpoints/all_seed2 checkpoints/all_seed3 --tag all
+!python scripts/unsupervised/final_evaluation.py --runs checkpoints/all_seed1 checkpoints/all_seed2 checkpoints/all_seed3 --tag all
 
 # the same for an ablation (the INSIDER_FEATURE_GROUPS value must match how those runs were trained)
-!INSIDER_FEATURE_GROUPS=file,device,logon python scripts/final_evaluation.py --runs checkpoints/nohttp_seed1 checkpoints/nohttp_seed2 --tag nohttp
+!INSIDER_FEATURE_GROUPS=file,device,logon python scripts/unsupervised/final_evaluation.py --runs checkpoints/nohttp_seed1 checkpoints/nohttp_seed2 --tag nohttp
 ```
 
 The LOCKED partition is for one final evaluation of a method fixed in advance, and needs `--partition locked --confirm-final`. Whatever it shows is what gets reported. Run it only once the method, feature set and seeds are frozen.
@@ -184,15 +184,15 @@ The LOCKED partition is for one final evaluation of a method fixed in advance, a
 Diagnostics and ablations:
 
 ```
-!python scripts/diagnose_scenario2_dilution.py
-!python scripts/ensemble_scores.py
-!INSIDER_FEATURE_GROUPS=file,device python scripts/train_models.py   # example ablation
+!python scripts/unsupervised/diagnose_scenario2_dilution.py
+!python scripts/unsupervised/ensemble_scores.py
+!INSIDER_FEATURE_GROUPS=file,device python scripts/unsupervised/train_models.py   # example ablation
 ```
 
 The **locked** test partition is for the single final evaluation only:
 
 ```
-!INSIDER_TEST_PARTITION=locked python scripts/evaluate_models.py
+!INSIDER_TEST_PARTITION=locked python scripts/unsupervised/evaluate_models.py
 ```
 
 Do not use it while designing features or tuning.
