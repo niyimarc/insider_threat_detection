@@ -213,6 +213,8 @@ It reports four signal-group configurations (file; +device; +logon; +http), both
 
 It ends with a DATE-MATCHED EVALUATION, which is the number to quote: the date-stratified AUROC compares each malicious day only with non-malicious days from the same calendar week (so knowing the date cannot help), reported for normally trained models and for models retrained with date-matched weights. The calendar-only control must land near 0.5 there; if it does not, the correction is not working. `--strata-days` changes the stratum width (default 7).
 
+The last section is the DECISIVE CHECK: insiders only, date-stratified. Only insiders' days are scored, each malicious day against other insiders' non-malicious days from the same week, so neither the date nor "insiders differ from benign users" can explain a score; the third table also trains on insiders only. A model clearly above 0.5 there, with the calendar-only control near chance, is separating behaviour inside the window from behaviour outside it. If a week range has no insiders on both sides of their window, the section says so instead of reporting a number.
+
 It also runs three CONFOUND CHECKS, to be read before any of the scores: a calendar-only control (the same models given only the date; a high score means the window labels can be recovered from when a day happened, not from behaviour), a within-insider comparison (insiders' window days vs the same insiders' other days, paired against that control), and permutation importance by signal group.
 
 ## 4. When Colab disconnects

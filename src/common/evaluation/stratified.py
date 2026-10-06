@@ -8,10 +8,14 @@ tracks the calendar then looks like detection (a model given nothing but
 the date reaches AUROC ~0.74 on the supervised user-day task). Here every
 malicious row is compared ONLY with non-malicious rows from the SAME
 calendar stratum (default: the same week), so the date carries no
-information. Concretely, the metric is the fraction of
+information at the stratum level. Concretely, the metric is the fraction of
 (malicious, non-malicious) pairs, restricted to pairs from the same
 stratum, in which the malicious row scores higher (ties count half). A
-score that depends on the date alone gets ~0.5 by construction.
+score that is constant within each stratum (depends on the stratum only)
+gets 0.5 by construction. A score that varies by day INSIDE a stratum is
+not covered by that guarantee: where a window starts or ends mid-stratum
+it can land above or below 0.5. Pair this metric with date-matched
+TRAINING when the model is given any date-like input.
 
 Strata with only one class contribute nothing (there is no pair in them).
 `coverage` reports how many strata and malicious rows are actually used,

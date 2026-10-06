@@ -7,7 +7,7 @@ from src.supervised.dataset import WINDOW_LABEL, day_feature_columns
 from src.supervised.experiment import GROUP_CONFIGS, HEURISTICS, model_key, run_experiment
 
 
-def _synthetic_day_table(seed=0, window_start=20):
+def _synthetic_day_table(seed=0, window_start=20, staggered=False, insider_event_shift=0.0):
     """
     24 users (12 insiders, 12 benign), 40 days each. On an insider's malicious days the http
     feature is high; every other column is noise. The answer-key label is a subset of the
@@ -22,9 +22,10 @@ def _synthetic_day_table(seed=0, window_start=20):
         if insider:
             scenario_by_user[user] = 1 + u % 3
         for d in range(40):
-            malicious = int(insider and d >= window_start)
+            start = (14 + 7 * (u % 3)) if staggered else window_start
+            malicious = int(insider and d >= start)
             row = {c: float(rng.normal()) for c in columns}
-            row["day_n_events"] = float(rng.integers(1, 6))
+            row["day_n_events"] = float(rng.integers(1, 6)) + (insider_event_shift if insider else 0.0)
             row["day_n_sessions"] = 1.0
             if malicious:
                 row["http_offbaseline_share_7d__mean"] += 3.0
@@ -188,14 +189,15 @@ def test_date_matched_results_are_reported_with_their_coverage(date_experiment):
     assert "Trained date-matched, evaluated date-stratified" in markdown
 
 
-def test_the_calendar_only_control_falls_to_chance_once_the_date_is_removed(date_experiment):
+def test_the_date_matched_calendar_only_control_falls_to_chance(date_experiment):
     results, _ = date_experiment
-    # sanity check of the whole correction: with the date removed, a model given only the date has nothing left
-    for table in ("trained_normally", "trained_date_matched"):
-        models = results["date_matched"][table]["models"]
-        for model in ("logistic", "gradient_boosting"):
-            value = models[model_key(model, "calendar_only")]["auroc"]["mean"]
-            assert 0.35 < value < 0.65, (table, model, value)
+    # sanity check of the whole correction: trained date-matched and scored date-stratified, a model
+    # given only the date has nothing left. (The NORMALLY trained control is deliberately not asserted:
+    # its day-level date scores vary inside a stratum, so it is not a clean 0.5 baseline.)
+    models = results["date_matched"]["trained_date_matched"]["models"]
+    for model in ("logistic", "gradient_boosting"):
+        value = models[model_key(model, "calendar_only")]["auroc"]["mean"]
+        assert 0.35 < value < 0.65, (model, value)
 
 
 def test_a_real_behavioural_signal_survives_date_matching(date_experiment):
@@ -221,3 +223,60 @@ def test_strata_width_is_configurable():
         n_folds=4, n_repeats=1, n_boot=20, strata_days=14,
     )
     assert results["date_matched"]["strata_days"] == 14
+
+
+# ---------------- insiders only, date-stratified (the decisive check) ----------------
+
+@pytest.fixture(scope="module")
+def insider_experiment():
+    # staggered windows (insiders start at day 14, 21 or 28 and run to the end), so weeks 2 and 3 contain insiders
+    # both inside and outside their window; and insiders have FEWER events per day than benign users whether or not
+    # they are in their window -- a "kind of user" confound that must not survive the insider-only evaluation
+    table, scenarios = _synthetic_day_table(staggered=True, insider_event_shift=-2.0)
+    results, markdown = run_experiment(
+        table, scenarios, config_names=("file+device+logon", "all"),
+        n_folds=4, n_repeats=2, n_boot=60, seed=0,
+    )
+    return results, markdown
+
+
+def test_insider_only_section_reports_its_coverage_and_three_tables(insider_experiment):
+    results, markdown = insider_experiment
+    evals = results["insider_only_date_stratified"]
+    assert set(evals) >= {"trained_on_all_users_normally", "trained_on_all_users_date_matched",
+                          "trained_on_insiders_date_matched"}
+    cov = evals["trained_on_insiders_date_matched"]["coverage"]
+    assert cov["n_strata_used"] == 2        # weeks 2 and 3 are the only weeks with insiders on both sides of their window
+    assert "Insiders only, date-stratified" in markdown
+    assert "Insiders only; models trained on INSIDERS ONLY, date-matched" in markdown
+
+
+def test_a_kind_of_user_confound_is_visible_against_benign_users_but_gone_among_insiders(insider_experiment):
+    results, _ = insider_experiment
+    key = model_key("gradient_boosting", "file+device+logon")
+    # against benign users in the same weeks, the file features look predictive (insiders have fewer events) ...
+    overall = results["date_matched"]["trained_date_matched"]["models"][key]["auroc"]["mean"]
+    # ... but among insiders alone there is nothing to find in the file/device/logon features
+    among_insiders = results["insider_only_date_stratified"]["trained_on_insiders_date_matched"]["models"][key]["auroc"]["mean"]
+    assert overall > 0.7
+    assert among_insiders < 0.65
+
+
+def test_a_real_behavioural_signal_survives_the_insider_only_check(insider_experiment):
+    results, _ = insider_experiment
+    models = results["insider_only_date_stratified"]["trained_on_insiders_date_matched"]["models"]
+    assert models[model_key("gradient_boosting", "all")]["auroc"]["mean"] > 0.8
+    assert models["single_feature_http"]["auroc"]["mean"] > 0.8
+    assert 0.3 < models[model_key("gradient_boosting", "calendar_only")]["auroc"]["mean"] < 0.7
+
+
+def test_insider_only_check_reports_when_it_cannot_be_computed():
+    # every insider shares one window: no week has insiders on both sides of it
+    table, scenarios = _synthetic_day_table(window_start=21)
+    results, markdown = run_experiment(
+        table, scenarios, model_names=("logistic",), config_names=("file+device+logon", "all"),
+        n_folds=4, n_repeats=1, n_boot=20,
+    )
+    cov = results["insider_only_date_stratified"]["trained_on_all_users_normally"]["coverage"]
+    assert cov["n_strata_used"] == 0
+    assert "cannot be computed on these data" in markdown

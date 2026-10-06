@@ -38,7 +38,15 @@ DATE-MATCHED EVALUATION (the fix, not just a check):
     the label independent of the week (src/supervised/models.py), so they
     cannot learn the date. Reported next to the normally trained models,
     both under the date-stratified metric. The calendar-only control run
-    this way is a built-in sanity check: it must land near 0.5.
+    this way is a built-in sanity check: it must land near 0.5. (The
+    NORMALLY trained control need not: its day-level date scores vary
+    inside a stratum, and window boundaries fall inside strata.)
+
+INSIDER-ONLY EVALUATION (the decisive check): only insiders' days are
+  scored, each malicious day against non-malicious days of insiders in the
+  same week (windows differ across insiders). Neither the date nor "insiders
+  differ from benign users" can explain a score there. Also run with models
+  TRAINED on insiders only.
 Pure given a day table: no file access, testable on synthetic data.
 """
 
@@ -224,6 +232,7 @@ def run_experiment(
         "within_insider": None,
         "permutation_importance": {},
         "date_matched": None,
+        "insider_only_date_stratified": None,
     }
     markdown = []
     for name, labels in labelings.items():
@@ -329,10 +338,13 @@ def run_experiment(
     markdown.append(
         f"## Date-matched evaluation (the calendar removed)\n\n"
         f"Both tables use the DATE-STRATIFIED AUROC: each malicious day is compared only with "
-        f"non-malicious days from the same {strata_days}-day calendar stratum, so knowing the date "
-        f"cannot help. The first table is the normally trained models; the second is the same models "
-        f"retrained with DATE-MATCHED weights, which makes their training label independent of the date. "
-        f"The calendar-only control must land near 0.5 in both: that is the check that the correction works.\n"
+        f"non-malicious days from the same {strata_days}-day calendar stratum. The first table is the "
+        f"normally trained models; the second is the same models retrained with DATE-MATCHED weights, "
+        f"which makes their training label independent of the date. The calendar-only control must land "
+        f"near 0.5 in the SECOND table: that is the check that the correction works. In the first table it "
+        f"can fall below 0.5, because a normally trained date model scores days differently WITHIN a "
+        f"stratum and the window boundaries fall inside strata, so the first table's control is not a "
+        f"clean baseline. Quote the second table.\n"
     )
     markdown.append(format_stratified_markdown(
         "Trained normally, evaluated date-stratified", "Window labelling.", normal_eval, display_names))
@@ -356,6 +368,75 @@ def run_experiment(
             "#### http contribution, date-matched training and date-stratified evaluation "
             "(paired, 95% user-level interval)\n\n" + "\n".join(lines) + "\n\n`*` = the interval excludes 0.\n"
         )
+
+    # ---- the decisive check: insiders only, date-stratified ----
+    n_insider_users = len(np.unique(users[insider_mask])) if insider_mask.any() else 0
+    if n_insider_users >= 2 and y_train[insider_mask].sum() > 0:
+        ins = insider_mask
+        users_i, y_i, strata_i = users[ins], y_train[ins], strata[ins]
+        resamples_i = make_user_resamples(users_i, n_boot=n_boot, seed=0)
+
+        def only_insiders(matrices):
+            return {k: np.atleast_2d(v)[:, ins] for k, v in matrices.items()}
+
+        trained_on_insiders = {name: np.atleast_2d(score_matrices[name])[:, ins] for name in HEURISTICS}
+        for model in model_names:
+            for config in list(config_names) + [CALENDAR_CONTROL]:
+                columns = CALENDAR_COLUMNS if config == CALENDAR_CONTROL else day_feature_columns(GROUP_CONFIGS[config])
+                trained_on_insiders[model_key(model, config)] = repeated_out_of_fold_scores(
+                    model, users_i, feature_matrix(day_table, columns)[ins], y_i, scenario_by_user,
+                    n_folds=min(n_folds, n_insider_users), n_repeats=n_repeats, seed=seed, strata=strata_i,
+                )
+        evals = {
+            "trained_on_all_users_normally": evaluate_stratified(
+                y_i, only_insiders(score_matrices), strata_i, resamples_i, reference=ref),
+            "trained_on_all_users_date_matched": evaluate_stratified(
+                y_i, only_insiders(matched), strata_i, resamples_i, reference=ref),
+            "trained_on_insiders_date_matched": evaluate_stratified(
+                y_i, trained_on_insiders, strata_i, resamples_i, reference=ref),
+        }
+        results["insider_only_date_stratified"] = evals
+        cov = evals["trained_on_all_users_normally"]["coverage"]
+        markdown.append(
+            "## Insiders only, date-stratified (the decisive check)\n\n"
+            "Only the insiders' user-days are scored, and each malicious day is compared only with "
+            "non-malicious days from the same calendar week. Because insiders' windows differ, most weeks "
+            "contain insiders who are inside their window and insiders who are not. So neither the DATE nor "
+            "'insiders differ from benign users' can explain a score: every row belongs to an insider. "
+            "The third table also TRAINS on insiders only, so the model cannot even learn what kind of user "
+            "an insider is. A model that is clearly above 0.5 here, with the calendar-only control at chance, "
+            "is separating behaviour inside the window from behaviour outside it.\n"
+        )
+        if cov["n_strata_used"] == 0:
+            markdown.append("No calendar stratum contains both insiders inside and outside their window, "
+                            "so this check cannot be computed on these data.\n")
+        else:
+            markdown.append(format_stratified_markdown(
+                "Insiders only; models trained on ALL users, normally", "Window labelling.",
+                evals["trained_on_all_users_normally"], display_names))
+            markdown.append(format_stratified_markdown(
+                "Insiders only; models trained on ALL users, date-matched", "Window labelling.",
+                evals["trained_on_all_users_date_matched"], display_names))
+            markdown.append(format_stratified_markdown(
+                "Insiders only; models trained on INSIDERS ONLY, date-matched", "Window labelling.",
+                evals["trained_on_insiders_date_matched"], display_names))
+            lines = []
+            for model in model_names:
+                if NO_HTTP_CONFIG in config_names and ALL_CONFIG in config_names:
+                    without, with_http = model_key(model, NO_HTTP_CONFIG), model_key(model, ALL_CONFIG)
+                    paired = evaluate_stratified(
+                        y_i, {without: trained_on_insiders[without], with_http: trained_on_insiders[with_http]},
+                        strata_i, resamples_i, reference=without,
+                    )
+                    d = paired["models"][with_http]["auroc_minus_reference"]
+                    evals.setdefault("http_contribution", {})[model] = d
+                    mark = " *" if d["ci_excludes_zero"] else ""
+                    lines.append(f"- {DISPLAY_NAMES[model]}: {d['mean']:+.3f} [{d['ci_low']:+.3f}, {d['ci_high']:+.3f}]{mark}")
+            if lines:
+                markdown.append(
+                    "#### http contribution, insiders only (trained on insiders, date-matched; paired, 95% "
+                    "user-level interval)\n\n" + "\n".join(lines) + "\n\n`*` = the interval excludes 0.\n"
+                )
 
     markdown.append(
         "_Development-partition numbers (the 50 dev users), cross-validated by user. Features and the "
