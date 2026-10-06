@@ -4,8 +4,7 @@ from torch.utils.data import Dataset
 from src.training.vocab import encode
 from src.training.scaling import apply_scaler
 from src.preprocessing.feature_groups import get_numeric_feature_columns, require_columns
-
-SESSION_KEY_COLUMNS = ["user", "session_start", "session_end"]
+from src.preprocessing.sessionize import SESSION_KEY_COLUMNS  # re-exported: other modules import it from here
 
 # The columns that go into the model as plain numeric features. They come
 # from the feature registry (src/preprocessing/feature_groups.py), which

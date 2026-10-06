@@ -1,28 +1,36 @@
+"""
+Trains every registered model (src/models/registry.py) on the TRAIN
+split and saves the checkpoints, vocabularies, scaler, feature
+configuration and run metadata into one run folder.
+
+    INSIDER_CHECKPOINT_DIR   run folder (default "checkpoints")
+    INSIDER_SEED             training seed (default 42)
+    INSIDER_FEATURE_GROUPS   feature groups to use (default: all)
+    INSIDER_MODELS           comma-separated subset of models (default: all)
+    INSIDER_REQUIRE_GPU=1    refuse to start on a CPU-only runtime
+
+Example:
+    INSIDER_CHECKPOINT_DIR=checkpoints/all_seed1 INSIDER_SEED=1 python scripts/train_models.py
+"""
+
 import os
 import sys
-import json
 
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, _PROJECT_ROOT)
 
 import pandas as pd
 import torch
-import joblib
 from torch.utils.data import DataLoader
 
+from src.models.registry import get_model_specs
 from src.training.vocab import build_vocab, save_vocab
 from src.training.scaling import build_scaler, save_scaler
 from src.training.dataset import SessionDataset, collate_sessions
 from src.training.feature_config import save_feature_config
 from src.training.run_config import get_checkpoint_dir, get_seed, set_global_seed, save_run_metadata
+from src.training.train_registry import train_registered_model
 from src.preprocessing.feature_groups import get_scaled_columns
-from src.training.train import train_model
-from src.models.transformer_autoencoder import (
-    DualChannelTransformerAutoencoder,
-    reconstruction_loss as transformer_loss,
-)
-from src.models.lstm_autoencoder import LSTMAutoencoder, reconstruction_loss as lstm_loss
-from src.models.static_vector_baseline import build_session_vectors, StaticVectorAnomalyDetector
 
 DATA_PATH = os.path.join(_PROJECT_ROOT, "data", "processed", "file_events_processed.parquet")
 # Folder and seed come from INSIDER_CHECKPOINT_DIR / INSIDER_SEED (see
@@ -33,12 +41,8 @@ SEED = get_seed()
 
 BATCH_SIZE = 32
 NUM_EPOCHS = 100
-# Raised from 5: the LSTM baseline's val loss was still trending down
-# (0.2601 -> 0.1788 in its last ~10 epochs) when patience=5 cut it off,
-# suggesting it hadn't actually plateaued yet -- a more generous budget
-# lets both models run closer to their real best-val-loss epoch before
-# stopping, rather than stopping on a short run of noisy non-improving
-# epochs.
+# Raised from 5: the LSTM baseline's val loss was still trending down when
+# patience=5 cut it off, suggesting it hadn't actually plateaued yet.
 PATIENCE = 10
 
 # 0/1 flag columns (see feature_groups.BINARY_NUMERIC_COLUMNS) are not
@@ -55,14 +59,6 @@ DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 REQUIRE_GPU = os.environ.get("INSIDER_REQUIRE_GPU", "").strip() not in ("", "0")
 
 
-def _cpu_state_dict(model):
-    """Checkpoints are always saved with CPU tensors, so they load fine on
-    a CPU-only machine (the evaluation scripts) regardless of where they
-    were trained -- a state dict saved from GPU tensors fails to load on
-    a machine without CUDA unless map_location is passed everywhere."""
-    return {key: value.cpu() for key, value in model.state_dict().items()}
-
-
 def main():
     if REQUIRE_GPU and DEVICE != "cuda":
         raise SystemExit(
@@ -70,12 +66,14 @@ def main():
             "is False). On Colab: Runtime -> Change runtime type -> T4 GPU, then "
             "Runtime -> Disconnect and delete runtime, reconnect, and re-run the setup cell."
         )
+    specs = get_model_specs()
     os.makedirs(CHECKPOINT_DIR, exist_ok=True)
     set_global_seed(SEED)
 
     print(f"Training device: {DEVICE}")
     print(f"Seed: {SEED}")
     print(f"Checkpoint folder: {CHECKPOINT_DIR}")
+    print(f"Models: {[s.name for s in specs]}")
     print(f"Run metadata saved to {save_run_metadata(CHECKPOINT_DIR, SEED, DEVICE)}")
     print(f"Loading {DATA_PATH} ...")
     events_df = pd.read_parquet(DATA_PATH)
@@ -109,50 +107,20 @@ def main():
     )
     print(f"{len(train_dataset)} train sessions, {len(val_dataset)} validation sessions")
 
-    # --- Proposed model: dual-channel Transformer autoencoder ---
-    print("\n=== Training proposed model (Transformer autoencoder) ===")
-    transformer_model = DualChannelTransformerAutoencoder(
-        file_type_vocab_size=len(file_type_vocab),
-        file_extension_vocab_size=len(file_extension_vocab),
-    )
-    transformer_model, transformer_history = train_model(
-        transformer_model, train_loader, val_loader, transformer_loss,
-        num_epochs=NUM_EPOCHS, patience=PATIENCE, device=DEVICE,
-    )
-    torch.save(
-        _cpu_state_dict(transformer_model),
-        os.path.join(CHECKPOINT_DIR, "transformer_autoencoder.pt"),
-    )
-    with open(os.path.join(CHECKPOINT_DIR, "transformer_autoencoder_history.json"), "w") as f:
-        json.dump(transformer_history, f, indent=2)
+    for spec in specs:
+        print(f"\n=== {spec.display_name} [{spec.name}] ===")
+        # Re-seed before every model, so a model's result does not depend
+        # on which other models were trained before it in this run.
+        set_global_seed(SEED)
+        train_registered_model(
+            spec,
+            train_df=train_df, train_loader=train_loader, val_loader=val_loader,
+            file_type_vocab=file_type_vocab, file_extension_vocab=file_extension_vocab,
+            checkpoint_dir=CHECKPOINT_DIR, seed=SEED, device=DEVICE,
+            num_epochs=NUM_EPOCHS, patience=PATIENCE,
+        )
 
-    # --- Baseline 1: LSTM autoencoder ---
-    print("\n=== Training baseline 1 (LSTM autoencoder) ===")
-    # hidden_dim raised from the default 64 to 128: scripts/tune_models.py's
-    # comparison showed this config reaching a best val loss of 0.1196 vs.
-    # 0.2068 for hidden_dim=64 (same lr, same epoch budget) -- a clear,
-    # consistent win at every epoch along the way, not just at the end.
-    lstm_model = LSTMAutoencoder(
-        file_type_vocab_size=len(file_type_vocab),
-        file_extension_vocab_size=len(file_extension_vocab),
-        hidden_dim=128,
-    )
-    lstm_model, lstm_history = train_model(
-        lstm_model, train_loader, val_loader, lstm_loss,
-        num_epochs=NUM_EPOCHS, patience=PATIENCE, device=DEVICE,
-    )
-    torch.save(_cpu_state_dict(lstm_model), os.path.join(CHECKPOINT_DIR, "lstm_autoencoder.pt"))
-    with open(os.path.join(CHECKPOINT_DIR, "lstm_autoencoder_history.json"), "w") as f:
-        json.dump(lstm_history, f, indent=2)
-
-    # --- Baseline 2: static session-vector Isolation Forest ---
-    print("\n=== Fitting baseline 2 (static-vector Isolation Forest) ===")
-    train_vectors, _ = build_session_vectors(train_df, file_type_vocab, file_extension_vocab)
-    static_detector = StaticVectorAnomalyDetector(random_state=SEED)
-    static_detector.fit(train_vectors)
-    joblib.dump(static_detector, os.path.join(CHECKPOINT_DIR, "static_vector_detector.joblib"))
-
-    print(f"\nAll three models trained and saved to {CHECKPOINT_DIR}")
+    print(f"\nAll models trained and saved to {CHECKPOINT_DIR}")
 
 
 if __name__ == "__main__":

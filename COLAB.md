@@ -159,6 +159,20 @@ Named runs (use these for ablations and multiple seeds, so runs never overwrite 
 
 Each folder gets `feature_config.json` and `run_metadata.json` (seed, versions, git commit). Evaluating with a different feature selection than the run was trained with stops with a clear error.
 
+**Models** are declared once in `src/models/registry.py` (the two autoencoders, the Isolation Forest, and two heuristic baselines that need no training: the single http feature and session length). Training, evaluation and the ensemble loop over that list. `INSIDER_MODELS=lstm_ae,static_iforest` restricts any script to a subset.
+
+**The results table** (`scripts/final_evaluation.py`): AUROC/AUPRC averaged over the seeds you pass, with 95% user-level bootstrap intervals, a paired comparison against the single-feature baseline, and BOTH labelings (window and answer-key) side by side. It writes `results/final_evaluation_<partition>_<tag>.json` and `.md`.
+
+```
+# development partition (the default), three seeds of the same configuration
+!python scripts/final_evaluation.py --runs checkpoints/all_seed1 checkpoints/all_seed2 checkpoints/all_seed3 --tag all
+
+# the same for an ablation (the INSIDER_FEATURE_GROUPS value must match how those runs were trained)
+!INSIDER_FEATURE_GROUPS=file,device,logon python scripts/final_evaluation.py --runs checkpoints/nohttp_seed1 checkpoints/nohttp_seed2 --tag nohttp
+```
+
+The LOCKED partition is for one final evaluation of a method fixed in advance, and needs `--partition locked --confirm-final`. Whatever it shows is what gets reported. Run it only once the method, feature set and seeds are frozen.
+
 Diagnostics and ablations:
 
 ```

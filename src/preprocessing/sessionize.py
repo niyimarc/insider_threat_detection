@@ -10,6 +10,14 @@ file_session_features.py (file volume/frequency) and logon_features.py
 
 import pandas as pd
 
+# The columns that identify one session. Everything that groups events
+# into sessions (the training dataset, the static-vector baseline, the
+# evaluation code) must use this same key and the same sort order, so
+# that session i means the same session everywhere. Kept here, in a
+# module with no heavy dependencies, so evaluation code can use it
+# without importing torch.
+SESSION_KEY_COLUMNS = ["user", "session_start", "session_end"]
+
 
 def _build_sessions_for_user(user_logon_df):
     """
