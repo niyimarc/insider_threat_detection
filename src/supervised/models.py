@@ -40,6 +40,36 @@ def balanced_sample_weights(labels):
     return weights.astype(float)
 
 
+def date_matched_weights(labels, strata):
+    """
+    Sample weights that remove the calendar from the label. Within every
+    calendar stratum (e.g. week) that has both classes, malicious rows get
+    weight 1 and non-malicious rows get n_malicious / n_non_malicious, so
+    each such stratum contributes equally many malicious and
+    non-malicious weight. Strata with only one class get weight 0: there
+    is nothing to match them against. A model trained with these weights
+    sees a label that is independent of the date, so it cannot profit from
+    knowing when a day happened.
+
+    If no stratum contains both classes, falls back to the ordinary
+    class-balanced weights.
+    """
+    labels = np.asarray(labels).astype(int)
+    _, ids = np.unique(np.asarray(strata), return_inverse=True)
+    weights = np.zeros(len(labels), dtype=float)
+    for stratum in np.unique(ids):
+        rows = ids == stratum
+        n_pos = int(labels[rows].sum())
+        n_neg = int(rows.sum()) - n_pos
+        if n_pos == 0 or n_neg == 0:
+            continue
+        weights[rows & (labels == 1)] = 1.0
+        weights[rows & (labels == 0)] = n_pos / n_neg
+    if weights.sum() == 0:
+        return balanced_sample_weights(labels)
+    return weights
+
+
 def train_medians(x_train):
     """Per-column medians of the finite training values (0 for a column with none)."""
     x = np.array(x_train, dtype=float, copy=True)
@@ -70,8 +100,11 @@ def signed_log(x):
     return np.sign(x) * np.log1p(np.abs(x))
 
 
-def fit_model(model_name, x_train, y_train, seed=0):
+def fit_model(model_name, x_train, y_train, seed=0, sample_weight=None):
     """
+    `sample_weight` replaces the default class-balanced weights (for
+    example with date_matched_weights).
+
     Trains `model_name` on the training rows and returns a function
     `predict(x) -> scores` (float array, higher = more likely malicious)
     that applies the same training-set imputation and scaling to any new
@@ -86,7 +119,7 @@ def fit_model(model_name, x_train, y_train, seed=0):
 
     medians = train_medians(x_train)
     a = apply_medians(x_train, medians)
-    weights = balanced_sample_weights(y_train)
+    weights = balanced_sample_weights(y_train) if sample_weight is None else np.asarray(sample_weight, dtype=float)
 
     if model_name == "logistic":
         from sklearn.linear_model import LogisticRegression
@@ -122,6 +155,6 @@ def fit_model(model_name, x_train, y_train, seed=0):
     return predict
 
 
-def fit_predict(model_name, x_train, y_train, x_test, seed=0):
+def fit_predict(model_name, x_train, y_train, x_test, seed=0, sample_weight=None):
     """Trains on the training rows and scores the test rows (see fit_model)."""
-    return fit_model(model_name, x_train, y_train, seed=seed)(x_test)
+    return fit_model(model_name, x_train, y_train, seed=seed, sample_weight=sample_weight)(x_test)

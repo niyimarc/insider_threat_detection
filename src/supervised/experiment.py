@@ -28,6 +28,17 @@ is something else):
     explanation remains possible there.
   * PERMUTATION IMPORTANCE BY SIGNAL GROUP: how much each group's columns
     matter to the all-signals model on held-out users.
+
+DATE-MATCHED EVALUATION (the fix, not just a check):
+  * DATE-STRATIFIED AUROC: every malicious day is compared only with
+    non-malicious days from the same calendar week, so the date carries
+    no information (src/common/evaluation/stratified.py). A score that
+    depends on the date alone gets 0.5 by construction.
+  * DATE-MATCHED TRAINING: the models are retrained with weights that make
+    the label independent of the week (src/supervised/models.py), so they
+    cannot learn the date. Reported next to the normally trained models,
+    both under the date-stratified metric. The calendar-only control run
+    this way is a built-in sanity check: it must land near 0.5.
 Pure given a day table: no file access, testable on synthetic data.
 """
 
@@ -41,6 +52,7 @@ from src.common.evaluation.bootstrap import (
     safe_auroc,
 )
 from src.common.evaluation.final_report import evaluate_labeling, format_markdown
+from src.common.evaluation.stratified import evaluate_stratified, format_stratified_markdown
 from src.supervised.cross_validation import (
     grouped_permutation_scores,
     make_user_folds,
@@ -149,6 +161,7 @@ def run_experiment(
     seed=0,
     reference=DEFAULT_REFERENCE,
     n_permutations=5,
+    strata_days=7,
 ):
     """
     day_table: build_user_day_table output plus `answer_key_label`.
@@ -210,6 +223,7 @@ def run_experiment(
         "http_contribution": {},
         "within_insider": None,
         "permutation_importance": {},
+        "date_matched": None,
     }
     markdown = []
     for name, labels in labelings.items():
@@ -295,6 +309,53 @@ def run_experiment(
         lines += ["`*` = the interval excludes 0. Groups that share information can hide each other "
                   "(shuffling one is partly compensated by another), so small drops do not prove a group is useless.", ""]
         markdown.append("\n".join(lines))
+
+    # ---- the fix: date-stratified evaluation, and date-matched training ----
+    strata = (day_table["calendar_day_index"].to_numpy() // strata_days).astype(int)
+    matched = {name: score_matrices[name] for name in HEURISTICS}
+    for model in model_names:
+        for config in list(config_names) + [CALENDAR_CONTROL]:
+            columns = CALENDAR_COLUMNS if config == CALENDAR_CONTROL else day_feature_columns(GROUP_CONFIGS[config])
+            matched[model_key(model, config)] = repeated_out_of_fold_scores(
+                model, users, feature_matrix(day_table, columns), y_train, scenario_by_user,
+                n_folds=n_folds, n_repeats=n_repeats, seed=seed, strata=strata,
+            )
+    normal_eval = evaluate_stratified(y_train, score_matrices, strata, resamples, reference=ref)
+    matched_eval = evaluate_stratified(y_train, matched, strata, resamples, reference=ref)
+    date_matched = {"strata_days": strata_days, "trained_normally": normal_eval,
+                    "trained_date_matched": matched_eval, "http_contribution": {}}
+    results["date_matched"] = date_matched
+
+    markdown.append(
+        f"## Date-matched evaluation (the calendar removed)\n\n"
+        f"Both tables use the DATE-STRATIFIED AUROC: each malicious day is compared only with "
+        f"non-malicious days from the same {strata_days}-day calendar stratum, so knowing the date "
+        f"cannot help. The first table is the normally trained models; the second is the same models "
+        f"retrained with DATE-MATCHED weights, which makes their training label independent of the date. "
+        f"The calendar-only control must land near 0.5 in both: that is the check that the correction works.\n"
+    )
+    markdown.append(format_stratified_markdown(
+        "Trained normally, evaluated date-stratified", "Window labelling.", normal_eval, display_names))
+    markdown.append(format_stratified_markdown(
+        "Trained date-matched, evaluated date-stratified", "Window labelling.", matched_eval, display_names))
+
+    lines = []
+    for model in model_names:
+        if NO_HTTP_CONFIG in config_names and ALL_CONFIG in config_names:
+            without, with_http = model_key(model, NO_HTTP_CONFIG), model_key(model, ALL_CONFIG)
+            paired = evaluate_stratified(
+                y_train, {without: matched[without], with_http: matched[with_http]}, strata, resamples,
+                reference=without,
+            )
+            d = paired["models"][with_http]["auroc_minus_reference"]
+            date_matched["http_contribution"][model] = d
+            mark = " *" if d["ci_excludes_zero"] else ""
+            lines.append(f"- {DISPLAY_NAMES[model]}: {d['mean']:+.3f} [{d['ci_low']:+.3f}, {d['ci_high']:+.3f}]{mark}")
+    if lines:
+        markdown.append(
+            "#### http contribution, date-matched training and date-stratified evaluation "
+            "(paired, 95% user-level interval)\n\n" + "\n".join(lines) + "\n\n`*` = the interval excludes 0.\n"
+        )
 
     markdown.append(
         "_Development-partition numbers (the 50 dev users), cross-validated by user. Features and the "

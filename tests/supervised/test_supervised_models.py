@@ -116,3 +116,44 @@ def test_train_medians_and_apply_medians():
     assert medians.tolist() == [2.0, 0.0]
     filled = apply_medians(np.array([[np.nan, 4.0]]), medians)
     assert filled.tolist() == [[2.0, 4.0]]
+
+
+def test_date_matched_weights_balance_every_usable_stratum():
+    from src.supervised.models import date_matched_weights
+    labels = np.array([1, 0, 0, 0,   1, 1, 0,   0, 0,   1, 1])
+    strata = np.array([0, 0, 0, 0,   1, 1, 1,   2, 2,   3, 3])   # stratum 2 has no positive, stratum 3 no negative
+    w = date_matched_weights(labels, strata)
+    for s in (0, 1):
+        rows = strata == s
+        assert w[rows & (labels == 1)].sum() == pytest.approx(w[rows & (labels == 0)].sum())
+    assert (w[strata == 2] == 0).all() and (w[strata == 3] == 0).all()
+    assert w[labels == 1][:1].tolist() == [1.0]
+    assert w[(strata == 0) & (labels == 0)].tolist() == pytest.approx([1 / 3] * 3)
+
+
+def test_date_matched_weights_make_the_label_independent_of_the_stratum():
+    from src.supervised.models import date_matched_weights
+    rng = np.random.default_rng(0)
+    strata = rng.integers(0, 6, 500)
+    labels = (rng.random(500) < (0.05 + 0.15 * strata)).astype(int)    # the label strongly depends on the stratum
+    w = date_matched_weights(labels, strata)
+    shares = [w[(strata == s) & (labels == 1)].sum() / w[strata == s].sum() for s in range(6) if w[strata == s].sum() > 0]
+    assert shares == pytest.approx([0.5] * len(shares))
+
+
+def test_date_matched_weights_fall_back_to_class_balanced_when_nothing_matches():
+    from src.supervised.models import date_matched_weights
+    labels = np.array([1, 1, 0, 0, 0, 0])
+    strata = np.array([0, 0, 1, 1, 1, 1])
+    assert date_matched_weights(labels, strata).tolist() == pytest.approx(balanced_sample_weights(labels).tolist())
+
+
+@pytest.mark.parametrize("model_name", MODEL_NAMES)
+def test_explicit_sample_weights_change_what_is_learned(model_name):
+    from src.supervised.models import fit_model
+    x, y = _toy()
+    x_test, y_test = _toy(seed=1)
+    zero_on_positives = np.where(y == 1, 1e-9, 1.0)
+    default = fit_model(model_name, x, y, seed=0)(x_test)
+    weighted = fit_model(model_name, x, y, seed=0, sample_weight=zero_on_positives)(x_test)
+    assert not np.allclose(default, weighted)

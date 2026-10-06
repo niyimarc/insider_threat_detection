@@ -211,6 +211,8 @@ Trains logistic regression and gradient boosting on user-day features with the W
 
 It reports four signal-group configurations (file; +device; +logon; +http), both labellings (window = training label; answer key = evaluation only), two no-training heuristics, and the http signal's paired contribution. There is deliberately no locked-partition option yet.
 
+It ends with a DATE-MATCHED EVALUATION, which is the number to quote: the date-stratified AUROC compares each malicious day only with non-malicious days from the same calendar week (so knowing the date cannot help), reported for normally trained models and for models retrained with date-matched weights. The calendar-only control must land near 0.5 there; if it does not, the correction is not working. `--strata-days` changes the stratum width (default 7).
+
 It also runs three CONFOUND CHECKS, to be read before any of the scores: a calendar-only control (the same models given only the date; a high score means the window labels can be recovered from when a day happened, not from behaviour), a within-insider comparison (insiders' window days vs the same insiders' other days, paired against that control), and permutation importance by signal group.
 
 ## 4. When Colab disconnects

@@ -61,6 +61,8 @@ def main():
     parser.add_argument("--n-repeats", type=int, default=3, help="independent fold assignments (seed-mean)")
     parser.add_argument("--n-boot", type=int, default=500)
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--strata-days", type=int, default=7,
+                        help="width in days of the calendar strata for the date-matched evaluation")
     parser.add_argument("--out-dir", default="results/supervised")
     parser.add_argument("--tag", default="all")
     args = parser.parse_args()
@@ -84,6 +86,7 @@ def main():
         day_table, scenario_by_user,
         model_names=tuple(args.models), config_names=tuple(args.configs),
         n_folds=args.n_folds, n_repeats=args.n_repeats, n_boot=args.n_boot, seed=args.seed,
+        strata_days=args.strata_days,
     )
     results["partition"] = "dev"
     results["git_commit"] = _git_commit()

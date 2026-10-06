@@ -16,7 +16,7 @@ report exactly like the training seeds of the unsupervised models.
 
 import numpy as np
 
-from src.supervised.models import fit_model, fit_predict
+from src.supervised.models import date_matched_weights, fit_model, fit_predict
 
 
 def make_user_folds(users, scenario_by_user, n_folds=5, seed=0):
@@ -46,13 +46,20 @@ def make_user_folds(users, scenario_by_user, n_folds=5, seed=0):
     return assignment
 
 
-def out_of_fold_scores(model_name, day_users, x, y, folds, seed=0):
+def out_of_fold_scores(model_name, day_users, x, y, folds, seed=0, strata=None):
     """
     day_users: (n,) user of each row; x: (n, d) features; y: (n,) 0/1
     training label; folds: {user: fold}. Returns (n,) out-of-fold scores.
+
+    strata: optional (n,) calendar stratum of each row. If given, every
+    fold's model is trained with DATE-MATCHED weights computed from that
+    fold's training rows only (src.supervised.models.date_matched_weights),
+    so the model cannot use the date to predict the label.
     """
     day_users = np.asarray(day_users)
     y = np.asarray(y).astype(int)
+    if strata is not None:
+        strata = np.asarray(strata)
     fold_of_row = np.array([folds[u] for u in day_users])
     scores = np.zeros(len(day_users), dtype=float)
     for fold in sorted(set(fold_of_row.tolist())):
@@ -60,7 +67,11 @@ def out_of_fold_scores(model_name, day_users, x, y, folds, seed=0):
         train = ~test
         if set(day_users[train].tolist()) & set(day_users[test].tolist()):
             raise AssertionError("a user appears in both the training and the test side of a fold")
-        scores[test] =fit_predict(model_name, x[train], y[train], x[test], seed=seed)
+        if strata is None:
+            scores[test] = fit_predict(model_name, x[train], y[train], x[test], seed=seed)
+        else:
+            weights = date_matched_weights(y[train], strata[train])
+            scores[test] = fit_predict(model_name, x[train], y[train], x[test], seed=seed, sample_weight=weights)
     return scores
 
 
@@ -105,13 +116,15 @@ def grouped_permutation_scores(model_name, day_users, x, y, folds, group_to_colu
     return base, permuted
 
 
-def repeated_out_of_fold_scores(model_name, day_users, x, y, scenario_by_user, n_folds=5, n_repeats=3, seed=0):
+def repeated_out_of_fold_scores(model_name, day_users, x, y, scenario_by_user, n_folds=5, n_repeats=3, seed=0,
+                                strata=None):
     """
-    (n_repeats, n) matrix: repeat r uses fold seed `seed + r`.
+    (n_repeats, n) matrix: repeat r uses fold seed `seed + r`. `strata`
+    switches on date-matched training (see out_of_fold_scores).
     """
     day_users = np.asarray(day_users)
     rows = []
     for r in range(n_repeats):
         folds = make_user_folds(day_users, scenario_by_user, n_folds=n_folds, seed=seed + r)
-        rows.append(out_of_fold_scores(model_name, day_users, x, y, folds, seed=seed + r))
+        rows.append(out_of_fold_scores(model_name, day_users, x, y, folds, seed=seed + r, strata=strata))
     return np.vstack(rows)

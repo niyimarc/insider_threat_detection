@@ -135,3 +135,41 @@ def test_group_permutation_never_mixes_training_and_test_users(monkeypatch):
     y = np.zeros(len(day_users), dtype=int)
     cv.grouped_permutation_scores("logistic", day_users, x, y, make_user_folds(users, insiders, 4), {"g": [0]})
     assert len(seen) == 4 and all(0 < n < len(day_users) for n in seen)
+
+
+def test_date_matched_training_weights_come_from_the_training_rows_only(monkeypatch):
+    captured = []
+
+    def fake_fit_predict(model_name, x_train, y_train, x_test, seed=0, sample_weight=None):
+        captured.append((np.asarray(y_train), sample_weight))
+        return np.zeros(len(x_test))
+
+    monkeypatch.setattr(cv, "fit_predict", fake_fit_predict)
+    insiders, users = _users()
+    day_users = np.repeat(users, 6)
+    rng = np.random.default_rng(0)
+    x = rng.normal(size=(len(day_users), 2))
+    y = (rng.random(len(day_users)) < 0.3).astype(int)
+    strata = np.tile(np.arange(6), len(users))
+    folds = make_user_folds(users, insiders, 4, seed=0)
+    out_of_fold_scores_fn = cv.out_of_fold_scores
+    out_of_fold_scores_fn("logistic", day_users, x, y, folds, strata=strata)
+    assert len(captured) == 4
+    for y_train, weights in captured:
+        assert weights is not None and len(weights) == len(y_train)
+        assert (weights >= 0).all() and weights.sum() > 0
+
+
+def test_without_strata_no_sample_weight_is_passed(monkeypatch):
+    calls = []
+
+    def fake_fit_predict(model_name, x_train, y_train, x_test, seed=0, **kwargs):
+        calls.append(kwargs)
+        return np.zeros(len(x_test))
+
+    monkeypatch.setattr(cv, "fit_predict", fake_fit_predict)
+    insiders, users = _users()
+    day_users = np.repeat(users, 2)
+    cv.out_of_fold_scores("logistic", day_users, np.zeros((len(day_users), 1)), np.zeros(len(day_users), dtype=int),
+                          make_user_folds(users, insiders, 4))
+    assert calls and all(kwargs == {} for kwargs in calls)

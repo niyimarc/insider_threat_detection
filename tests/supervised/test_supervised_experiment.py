@@ -7,7 +7,7 @@ from src.supervised.dataset import WINDOW_LABEL, day_feature_columns
 from src.supervised.experiment import GROUP_CONFIGS, HEURISTICS, model_key, run_experiment
 
 
-def _synthetic_day_table(seed=0):
+def _synthetic_day_table(seed=0, window_start=20):
     """
     24 users (12 insiders, 12 benign), 40 days each. On an insider's malicious days the http
     feature is high; every other column is noise. The answer-key label is a subset of the
@@ -22,7 +22,7 @@ def _synthetic_day_table(seed=0):
         if insider:
             scenario_by_user[user] = 1 + u % 3
         for d in range(40):
-            malicious = int(insider and d >= 20)
+            malicious = int(insider and d >= window_start)
             row = {c: float(rng.normal()) for c in columns}
             row["day_n_events"] = float(rng.integers(1, 6))
             row["day_n_sessions"] = 1.0
@@ -161,3 +161,63 @@ def test_importance_is_skipped_when_the_all_signals_configuration_is_not_request
     )
     assert results["permutation_importance"] == {}
     assert "Permutation importance by signal group" not in markdown
+
+
+# ---------------- date-matched evaluation and training ----------------
+
+@pytest.fixture(scope="module")
+def date_experiment():
+    # insider windows start exactly on a week boundary (day 21), so the weekly strata are clean:
+    # weeks 3, 4 and 5 contain both classes, weeks 0-2 contain no malicious day
+    table, scenarios = _synthetic_day_table(window_start=21)
+    results, markdown = run_experiment(
+        table, scenarios, config_names=("file+device+logon", "all"),
+        n_folds=4, n_repeats=2, n_boot=60, seed=0,
+    )
+    return results, markdown
+
+
+def test_date_matched_results_are_reported_with_their_coverage(date_experiment):
+    results, markdown = date_experiment
+    section = results["date_matched"]
+    assert section["strata_days"] == 7
+    cov = section["trained_normally"]["coverage"]
+    assert cov["n_strata_used"] == 3 and cov["n_positive_used"] == cov["n_positive"]
+    assert "Date-matched evaluation" in markdown
+    assert "Trained normally, evaluated date-stratified" in markdown
+    assert "Trained date-matched, evaluated date-stratified" in markdown
+
+
+def test_the_calendar_only_control_falls_to_chance_once_the_date_is_removed(date_experiment):
+    results, _ = date_experiment
+    # sanity check of the whole correction: with the date removed, a model given only the date has nothing left
+    for table in ("trained_normally", "trained_date_matched"):
+        models = results["date_matched"][table]["models"]
+        for model in ("logistic", "gradient_boosting"):
+            value = models[model_key(model, "calendar_only")]["auroc"]["mean"]
+            assert 0.35 < value < 0.65, (table, model, value)
+
+
+def test_a_real_behavioural_signal_survives_date_matching(date_experiment):
+    results, _ = date_experiment
+    matched = results["date_matched"]["trained_date_matched"]["models"]
+    assert matched[model_key("gradient_boosting", "all")]["auroc"]["mean"] > 0.9
+    assert matched["single_feature_http"]["auroc"]["mean"] > 0.9
+    # without the planted http signal there is nothing left to find
+    assert matched[model_key("gradient_boosting", "file+device+logon")]["auroc"]["mean"] < 0.65
+
+
+def test_date_matched_http_contribution_is_reported_and_positive(date_experiment):
+    results, markdown = date_experiment
+    d = results["date_matched"]["http_contribution"]["gradient_boosting"]
+    assert d["mean"] > 0.2 and d["ci_excludes_zero"] is True
+    assert "http contribution, date-matched" in markdown
+
+
+def test_strata_width_is_configurable():
+    table, scenarios = _synthetic_day_table(window_start=21)
+    results, _ = run_experiment(
+        table, scenarios, model_names=("logistic",), config_names=("all",),
+        n_folds=4, n_repeats=1, n_boot=20, strata_days=14,
+    )
+    assert results["date_matched"]["strata_days"] == 14
