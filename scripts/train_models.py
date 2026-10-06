@@ -49,6 +49,11 @@ SCALED_COLUMNS = get_scaled_columns()
 # falls back to CPU otherwise, so the same script works on both.
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
+# Set INSIDER_REQUIRE_GPU=1 (the Colab commands do) to refuse to start a
+# multi-hour run on the CPU by accident -- e.g. after a Colab runtime
+# reset silently went back to a CPU runtime.
+REQUIRE_GPU = os.environ.get("INSIDER_REQUIRE_GPU", "").strip() not in ("", "0")
+
 
 def _cpu_state_dict(model):
     """Checkpoints are always saved with CPU tensors, so they load fine on
@@ -59,6 +64,12 @@ def _cpu_state_dict(model):
 
 
 def main():
+    if REQUIRE_GPU and DEVICE != "cuda":
+        raise SystemExit(
+            "INSIDER_REQUIRE_GPU is set but no GPU is available (torch.cuda.is_available() "
+            "is False). On Colab: Runtime -> Change runtime type -> T4 GPU, then "
+            "Runtime -> Disconnect and delete runtime, reconnect, and re-run the setup cell."
+        )
     os.makedirs(CHECKPOINT_DIR, exist_ok=True)
     set_global_seed(SEED)
 
