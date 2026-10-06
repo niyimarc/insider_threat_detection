@@ -46,9 +46,13 @@ D = "/content/drive/MyDrive/insider_threat"
 !ln -sfn {D}/raw /content/project/data/raw
 !ln -sfn {D}/processed /content/project/data/processed
 !ln -sfn {D}/checkpoints /content/project/checkpoints
+# results/ also lives on Drive, so the results tables survive a runtime reset
+!mkdir -p {D}/results
+!if [ ! -L /content/project/results ]; then rm -rf /content/project/results; fi
+!ln -sfn {D}/results /content/project/results
 %cd /content/project
 !git log --oneline -1
-!ls data/raw data/processed checkpoints
+!ls data/raw data/processed checkpoints results
 ```
 
 Then check the GPU (`!nvidia-smi`) and run whatever step you need. The expected `ls` output: `raw/` holds `r4.2` and `answers`, `processed/` holds the parquet files, `checkpoints/` holds the model files. If `r4.2` is missing, do the one-off raw-data download in section 1.
@@ -89,6 +93,9 @@ token = userdata.get('GITHUB_TOKEN')
 !ln -sfn /content/drive/MyDrive/insider_threat/raw /content/project/data/raw
 !ln -sfn /content/drive/MyDrive/insider_threat/processed /content/project/data/processed
 !ln -sfn /content/drive/MyDrive/insider_threat/checkpoints /content/project/checkpoints
+!mkdir -p /content/drive/MyDrive/insider_threat/results
+!if [ ! -L /content/project/results ]; then rm -rf /content/project/results; fi
+!ln -sfn /content/drive/MyDrive/insider_threat/results /content/project/results
 ```
 
 Drive layout this expects (`/content/drive/MyDrive/insider_threat/`):
@@ -99,6 +106,7 @@ raw/answers/                                   (insiders.csv, r4.2-1/ ...)
 processed/file_events_processed.parquet
 processed/http_domain_daily.parquet, http_hour_daily.parquet
 checkpoints/
+results/                                       (final_evaluation_*.json / .md tables)
 ```
 
 **One-off: download the raw data to Drive** (only if `raw/r4.2` is missing; about 4.8 GB download, 10-25 min to extract, keep the tab open)
