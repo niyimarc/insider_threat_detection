@@ -199,6 +199,18 @@ Do not use it while designing features or tuning.
 
 Rebuilding the dataset (`build_dataset.py`) makes existing checkpoints stale. Retrain afterwards.
 
+## 3b. Supervised user-day detection (no GPU needed)
+
+Trains logistic regression and gradient boosting on user-day features with the WINDOW label, cross-validated over USERS (stratified by scenario), on the development partition only. It needs the processed dataset (`build_dataset.py`) and nothing else, runs on the CPU in a few minutes, and writes `results/supervised/supervised_cv_dev_<tag>.json` and `.md`.
+
+```
+!python scripts/supervised/cross_validate.py
+# a quicker check of two configurations:
+!python scripts/supervised/cross_validate.py --models gradient_boosting --configs file all --tag quick
+```
+
+It reports four signal-group configurations (file; +device; +logon; +http), both labellings (window = training label; answer key = evaluation only), two no-training heuristics, and the http signal's paired contribution. There is deliberately no locked-partition option yet.
+
 ## 4. When Colab disconnects
 
 Disconnects happen (idle timeout, browser closed, usage limits). What survives and what does not:

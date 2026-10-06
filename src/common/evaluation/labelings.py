@@ -75,12 +75,14 @@ def load_answer_key_events(answers_dir=DEFAULT_ANSWERS_DIR):
     return {"http_days": http_days, "device_intervals": device_intervals}
 
 
-def answer_key_session_labels(events_df, key):
+def _answer_key_event_hits(events_df, key):
     """
-    0/1 array, one entry per session in canonical order (events sorted by
-    SESSION_KEY_COLUMNS, then grouped): 1 if any event of the session
-    falls on an answer-key http day for its user or inside an
-    answer-key device interval for its user.
+    The events sorted into canonical session order, plus a `_day` column
+    (calendar day of the event) and a boolean `_hit` column: True where
+    the event falls on an answer-key http day for its user or inside an
+    answer-key device interval for its user. Shared by the session-level
+    and the day-level labels, so the two can never disagree about what
+    counts as a hit.
     """
     ordered = events_df.sort_values(SESSION_KEY_COLUMNS).copy()
     ordered["_day"] = pd.to_datetime(ordered["date"]).dt.normalize()
@@ -109,4 +111,27 @@ def answer_key_session_labels(events_df, key):
         hit[idx] |= in_interval
 
     merged["_hit"] = hit
+    return merged
+
+
+def answer_key_session_labels(events_df, key):
+    """
+    0/1 array, one entry per session in canonical order (events sorted by
+    SESSION_KEY_COLUMNS, then grouped): 1 if any event of the session
+    falls on an answer-key http day for its user or inside an
+    answer-key device interval for its user.
+    """
+    merged = _answer_key_event_hits(events_df, key)
     return merged.groupby(SESSION_KEY_COLUMNS, sort=False)["_hit"].any().to_numpy().astype(int)
+
+
+def answer_key_day_labels(events_df, key):
+    """
+    DataFrame(user, day, answer_key_label): one row per user-day that has
+    at least one file event; label 1 if any event of that user-day is an
+    answer-key hit (same rule as the session labels).
+    """
+    merged = _answer_key_event_hits(events_df, key)
+    out = merged.groupby(["user", "_day"], sort=True)["_hit"].any().astype(int).reset_index()
+    out.columns = ["user", "day", "answer_key_label"]
+    return out

@@ -100,17 +100,19 @@ def _fmt_ci(entry):
     return f"{entry['mean']:.3f} [{entry['ci_low']:.3f}, {entry['ci_high']:.3f}]"
 
 
-def format_markdown(labeling_name, description, result, display_names=None):
-    """A markdown table for one labelling."""
+def format_markdown(labeling_name, description, result, display_names=None, unit="sessions"):
+    """A markdown table for one labelling. `unit` names the rows scored
+    ("sessions" for the session-level evaluation, "user-days" for the
+    supervised day-level one)."""
     display_names = display_names or {}
     lines = [
         f"### Labelling: {labeling_name}",
         "",
         description,
         "",
-        f"{result['n_sessions']} sessions, {result['n_positive']} malicious "
+        f"{result['n_sessions']} {unit}, {result['n_positive']} malicious "
         f"(prevalence {result['prevalence']:.3f}, which is the chance-level AUPRC); "
-        f"malicious sessions by scenario: {result['positives_by_scenario']}.",
+        f"malicious {unit} by scenario: {result['positives_by_scenario']}.",
         "",
     ]
     ref = result["reference"]
@@ -138,8 +140,8 @@ def format_markdown(labeling_name, description, result, display_names=None):
     lines += [
         "",
         "0.5 AUROC = no separation. `*` = the interval for the difference excludes 0. "
-        "Intervals resample whole users. Scenario columns: that scenario's malicious "
-        "sessions vs benign users' sessions (s1 and s3 are tiny samples: anecdotal).",
+        f"Intervals resample whole users. Scenario columns: that scenario's malicious "
+        f"{unit} vs benign users' {unit} (s1 and s3 are tiny samples: anecdotal).",
         "",
     ]
     return "\n".join(lines)

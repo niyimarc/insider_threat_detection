@@ -72,6 +72,25 @@ def test_session_labels_follow_the_answer_key_and_the_canonical_session_order(tm
     assert by_session[("U2", "2010-06-28")] == 0   # the http day belongs to a different user
 
 
+def test_day_labels_follow_the_same_rule_as_session_labels(tmp_path):
+    from src.common.evaluation.labelings import answer_key_day_labels
+    key = load_answer_key_events(_write_answer_key(tmp_path))
+    days = answer_key_day_labels(_events(), key)
+    labels = {(r["user"], r["day"].strftime("%Y-%m-%d")): int(r["answer_key_label"]) for _, r in days.iterrows()}
+    assert labels == {
+        ("U1", "2010-06-28"): 1,   # injected http day
+        ("U1", "2010-07-01"): 0,
+        ("U1", "2010-08-03"): 1,   # one of the day's events was inside the device interval
+        ("U2", "2010-06-28"): 0,   # the http day belongs to a different user
+    }
+
+
+def test_day_labels_are_empty_without_an_answer_key(tmp_path):
+    from src.common.evaluation.labelings import answer_key_day_labels
+    days = answer_key_day_labels(_events(), load_answer_key_events(str(tmp_path)))
+    assert days["answer_key_label"].sum() == 0 and len(days) == 4
+
+
 def test_windows_line_endings_are_handled(tmp_path):
     # Regression: a trailing "\r" made "Connect\r" != "Connect", so no device
     # interval was ever built on files with Windows line endings.
