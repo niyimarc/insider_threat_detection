@@ -107,6 +107,27 @@ def all_days_group_of_column(column):
     raise KeyError(f"'{column}' is not an input column of the all-days table.")
 
 
+def without_columns(feature_set, excluded):
+    """
+    The same feature set with some input columns removed (an ablation). Heuristics are unchanged.
+    Unknown names are rejected, so a typo cannot silently ablate nothing.
+    """
+    excluded = tuple(excluded)
+    all_columns = set(feature_set.columns_fn(["file", "device", "logon", "http"]))
+    unknown = [c for c in excluded if c not in all_columns]
+    if unknown:
+        raise ValueError(f"Not input columns of the {feature_set.name} feature set: {unknown}")
+    return FeatureSet(
+        name=f"{feature_set.name}-without-{'-'.join(excluded)}" if excluded else feature_set.name,
+        columns_fn=lambda groups: [c for c in feature_set.columns_fn(groups) if c not in excluded],
+        group_fn=feature_set.group_fn,
+        heuristics=feature_set.heuristics,
+        window_description=feature_set.window_description,
+        answer_key_description=feature_set.answer_key_description,
+        unit_label=feature_set.unit_label,
+    )
+
+
 ALL_DAYS = FeatureSet(
     name="all_days",
     columns_fn=all_days_feature_columns,

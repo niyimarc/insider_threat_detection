@@ -120,6 +120,19 @@ def test_every_input_column_exists_belongs_to_one_group_and_is_not_a_label():
         all_days_feature_columns(("device",))                 # the file group cannot be dropped
 
 
+def test_without_columns_removes_only_the_named_inputs_and_rejects_unknown_names():
+    from src.supervised.feature_sets import ALL_DAYS, without_columns
+    groups = ("file", "device", "logon", "http")
+    ablated = without_columns(ALL_DAYS, ["dv_prior_use_days"])
+    before, after = ALL_DAYS.columns_fn(groups), ablated.columns_fn(groups)
+    assert "dv_prior_use_days" in before and "dv_prior_use_days" not in after
+    assert [c for c in before if c != "dv_prior_use_days"] == after
+    assert ablated.heuristics == ALL_DAYS.heuristics
+    assert without_columns(ALL_DAYS, []).columns_fn(groups) == before
+    with pytest.raises(ValueError):
+        without_columns(ALL_DAYS, ["not_a_column"])
+
+
 def test_inputs_are_not_modified():
     logon, device, files, http, windows, key_days = _raw_frames()
     before = [f.copy() for f in (logon, device, files, http, windows, key_days)]

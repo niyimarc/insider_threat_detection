@@ -38,7 +38,7 @@ from src.common.preprocessing.labeling import load_malicious_windows
 from src.common.preprocessing.load import load_device_events, load_logon_events
 from src.supervised.all_days import build_all_user_days
 from src.supervised.experiment import GROUP_CONFIGS, run_experiment
-from src.supervised.feature_sets import ALL_DAYS
+from src.supervised.feature_sets import ALL_DAYS, without_columns
 from src.supervised.models import MODEL_NAMES
 
 PROCESSED_DIR = os.path.join(_PROJECT_ROOT, "data", "processed")
@@ -69,7 +69,10 @@ def main():
     parser.add_argument("--strata-days", type=int, default=7)
     parser.add_argument("--out-dir", default="results/supervised")
     parser.add_argument("--tag", default="all")
+    parser.add_argument("--exclude-features", nargs="*", default=[],
+                        help="input columns to remove (an ablation), e.g. dv_prior_use_days")
     args = parser.parse_args()
+    feature_set = without_columns(ALL_DAYS, args.exclude_features) if args.exclude_features else ALL_DAYS
 
     print(f"Loading {DATA_PATH} ...")
     events = pd.read_parquet(DATA_PATH)
@@ -101,10 +104,11 @@ def main():
         table, scenario_by_user,
         model_names=tuple(args.models), config_names=tuple(args.configs),
         n_folds=args.n_folds, n_repeats=args.n_repeats, n_boot=args.n_boot, seed=args.seed,
-        strata_days=args.strata_days, feature_set=ALL_DAYS,
+        strata_days=args.strata_days, feature_set=feature_set,
     )
     results["partition"] = "dev"
     results["table"] = "all_days"
+    results["excluded_features"] = list(args.exclude_features)
     results["git_commit"] = _git_commit()
     header = (
         f"# Supervised ALL-DAYS detection: development partition, user-level cross-validation "
@@ -113,6 +117,8 @@ def main():
         f"activity), {args.n_folds} folds x {args.n_repeats} repeats, {args.n_boot} bootstrap resamples. "
         f"Commit: `{results['git_commit']}`.\n"
     )
+    if args.exclude_features:
+        header += f"\n**ABLATION: input columns removed: {', '.join(args.exclude_features)}.**\n"
     markdown = header + "\n" + markdown
 
     out_dir = _resolve(args.out_dir)

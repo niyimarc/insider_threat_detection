@@ -231,6 +231,12 @@ and the full run (all models, 3 repeats, 500 resamples):
 !python scripts/supervised/cross_validate_all_days.py
 ```
 
+Ablation (remove input columns and rerun, e.g. the cumulative device-use counter):
+
+```
+!python scripts/supervised/cross_validate_all_days.py --exclude-features dv_prior_use_days --tag no_prior_use
+```
+
 It writes `results/supervised/supervised_all_days_dev_<tag>.json` and `.md` with the same sections as 3b, plus "Permutation importance by individual feature" (top 15 columns, showing which device/logon feature carries the group-level result). Read the last section (insiders only, date-stratified) first. Dev only: there is deliberately no locked-partition option.
 
 ## 4. When Colab disconnects
