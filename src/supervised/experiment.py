@@ -149,6 +149,49 @@ def _permutation_importance(table, scenario_by_user, model_names, labels, resamp
     return importance
 
 
+def _feature_importance(table, scenario_by_user, model_names, labels, resamples, n_folds, seed, n_permutations,
+                        feature_set, top_k=15):
+    """
+    Permutation importance of every INDIVIDUAL column (all-signals configuration). Every column is
+    ranked by its point AUROC drop; only the `top_k` get a bootstrap interval (the rest would cost
+    thousands of AUROC evaluations for numbers nobody reads).
+    {model: {"base_auroc": ..., "top": [{"feature", "group", "auroc_drop", "ci_low", "ci_high",
+    "ci_excludes_zero"}, ...]}}
+    """
+    columns = feature_set.columns_fn(GROUP_CONFIGS[ALL_CONFIG])
+    x = feature_matrix(table, columns)
+    users = table["user"].to_numpy()
+    folds = make_user_folds(users, scenario_by_user, n_folds=n_folds, seed=seed)
+    single = {column: [i] for i, column in enumerate(columns)}
+    out = {}
+    for model in model_names:
+        base, permuted = grouped_permutation_scores(
+            model, users, x, labels, folds, single, seed=seed, n_permutations=n_permutations,
+        )
+        base_point = float(safe_auroc(labels, base))
+        point_drop = {
+            column: base_point - float(np.nanmean([safe_auroc(labels, row) for row in matrix]))
+            for column, matrix in permuted.items()
+        }
+        ranked = sorted(point_drop, key=lambda c: point_drop[c], reverse=True)[:top_k]
+        base_values = metric_over_resamples(labels, base, resamples, safe_auroc)
+        top = []
+        for column in ranked:
+            drop = paired_difference(
+                base_values, metric_over_resamples(labels, permuted[column], resamples, safe_auroc))
+            low, high = interval(drop)
+            top.append({
+                "feature": column,
+                "group": feature_set.group_fn(column),
+                "auroc_drop": float(np.nanmean(drop)) if np.isfinite(drop).any() else float("nan"),
+                "ci_low": low,
+                "ci_high": high,
+                "ci_excludes_zero": bool(low > 0 or high < 0),
+            })
+        out[model] = {"base_auroc": base_point, "top": top}
+    return out
+
+
 def run_experiment(
     day_table,
     scenario_by_user,
@@ -226,6 +269,7 @@ def run_experiment(
         "http_contribution": {},
         "within_insider": None,
         "permutation_importance": {},
+        "feature_importance": {},
         "date_matched": None,
         "insider_only_date_stratified": None,
     }
@@ -312,6 +356,27 @@ def run_experiment(
             lines.append("")
         lines += ["`*` = the interval excludes 0. Groups that share information can hide each other "
                   "(shuffling one is partly compensated by another), so small drops do not prove a group is useless.", ""]
+        markdown.append("\n".join(lines))
+
+        # which individual columns carry the group-level result
+        feature_importance = _feature_importance(
+            day_table, scenario_by_user, model_names, y_train, resamples, n_folds, seed, n_permutations, fs,
+        )
+        results["feature_importance"] = feature_importance
+        lines = ["#### Permutation importance by individual feature "
+                 "(all-signals model, held-out users, window labelling, top 15)", "",
+                 "AUROC lost when ONE column is shuffled across the held-out days. Correlated columns "
+                 "(for example several measures of the same device use) share credit, so each one's drop "
+                 "understates its group; read this as a pointer to WHICH kind of device or logon behaviour "
+                 "matters, not as an exact ranking.", ""]
+        for model, entry in feature_importance.items():
+            lines.append(f"{DISPLAY_NAMES[model]} (AUROC with nothing shuffled: {entry['base_auroc']:.3f})")
+            lines.append("")
+            for d in entry["top"]:
+                mark = " *" if d["ci_excludes_zero"] else ""
+                lines.append(f"- {d['feature']} ({d['group']}): {d['auroc_drop']:+.3f} "
+                             f"[{d['ci_low']:+.3f}, {d['ci_high']:+.3f}]{mark}")
+            lines.append("")
         markdown.append("\n".join(lines))
 
     # ---- the fix: date-stratified evaluation, and date-matched training ----

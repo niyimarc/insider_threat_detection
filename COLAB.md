@@ -231,7 +231,7 @@ and the full run (all models, 3 repeats, 500 resamples):
 !python scripts/supervised/cross_validate_all_days.py
 ```
 
-It writes `results/supervised/supervised_all_days_dev_<tag>.json` and `.md` with the same sections as 3b. Read the last section (insiders only, date-stratified) first. Dev only: there is deliberately no locked-partition option.
+It writes `results/supervised/supervised_all_days_dev_<tag>.json` and `.md` with the same sections as 3b, plus "Permutation importance by individual feature" (top 15 columns, showing which device/logon feature carries the group-level result). Read the last section (insiders only, date-stratified) first. Dev only: there is deliberately no locked-partition option.
 
 ## 4. When Colab disconnects
 

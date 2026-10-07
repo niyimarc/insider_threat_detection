@@ -154,13 +154,24 @@ def test_permutation_importance_points_at_the_planted_signal_group(experiment):
     assert "Permutation importance by signal group" in markdown
 
 
+def test_feature_importance_ranks_the_planted_column_first(experiment):
+    results, markdown = experiment
+    entry = results["feature_importance"]["gradient_boosting"]
+    top = entry["top"]
+    assert 1 <= len(top) <= 15
+    assert top[0]["group"] == "http" and top[0]["auroc_drop"] > 0.1
+    drops = [d["auroc_drop"] for d in top]
+    assert drops == sorted(drops, reverse=True) or top[0]["auroc_drop"] == max(drops)
+    assert "Permutation importance by individual feature" in markdown
+
+
 def test_importance_is_skipped_when_the_all_signals_configuration_is_not_requested():
     table, scenarios = _synthetic_day_table()
     results, markdown = run_experiment(
         table, scenarios, model_names=("logistic",), config_names=("file",),
         n_folds=4, n_repeats=1, n_boot=20,
     )
-    assert results["permutation_importance"] == {}
+    assert results["permutation_importance"] == {} and results["feature_importance"] == {}
     assert "Permutation importance by signal group" not in markdown
 
 
