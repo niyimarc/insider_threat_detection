@@ -217,6 +217,22 @@ The last section is the DECISIVE CHECK: insiders only, date-stratified. Only ins
 
 It also runs three CONFOUND CHECKS, to be read before any of the scores: a calendar-only control (the same models given only the date; a high score means the window labels can be recovered from when a day happened, not from behaviour), a within-insider comparison (insiders' window days vs the same insiders' other days, paired against that control), and permutation importance by signal group.
 
+## 3c. Supervised detection on ALL user-days (device and logon signals)
+
+The table above only had days with a file copy. This version has a row for EVERY day the user was active in the logon, device or file log, and adds day-level device and logon signals (connects per day, after-hours events, distinct PCs, first-ever drive use, and deviations from the user's own previous days; see `src/supervised/day_signals.py`). The feature list was fixed in advance from the dataset's readme and `scenarios.txt`, not from results. It needs the raw `logon.csv` and `device.csv` on Drive as well as the processed dataset, and it runs on the CPU. The table is about five times larger than before, so expect a long run; a quick first pass:
+
+```
+!python scripts/supervised/cross_validate_all_days.py --models gradient_boosting --n-repeats 1 --n-boot 200 --tag quick
+```
+
+and the full run (all models, 3 repeats, 500 resamples):
+
+```
+!python scripts/supervised/cross_validate_all_days.py
+```
+
+It writes `results/supervised/supervised_all_days_dev_<tag>.json` and `.md` with the same sections as 3b. Read the last section (insiders only, date-stratified) first. Dev only: there is deliberately no locked-partition option.
+
 ## 4. When Colab disconnects
 
 Disconnects happen (idle timeout, browser closed, usage limits). What survives and what does not:

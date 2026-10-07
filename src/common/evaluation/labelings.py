@@ -125,6 +125,33 @@ def answer_key_session_labels(events_df, key):
     return merged.groupby(SESSION_KEY_COLUMNS, sort=False)["_hit"].any().to_numpy().astype(int)
 
 
+def answer_key_labeled_days(key):
+    """
+    DataFrame(user, day, answer_key_label=1): every (user, calendar day) the answer
+    key marks as malicious, independent of whether the user copied any file: days
+    with an injected http event, plus every day covered by an answer-key removable-device
+    session (Connect -> Disconnect). Used for the all-days table.
+    """
+    pieces = []
+    http = key["http_days"][["user", "day"]]
+    if len(http):
+        pieces.append(http)
+    intervals = key["device_intervals"]
+    if len(intervals):
+        rows = []
+        for _, row in intervals.iterrows():
+            for day in pd.date_range(row["start"].normalize(), row["end"].normalize(), freq="D"):
+                rows.append((row["user"], day))
+        pieces.append(pd.DataFrame(rows, columns=["user", "day"]))
+    if not pieces:
+        return pd.DataFrame({"user": pd.Series(dtype=object), "day": pd.Series(dtype="datetime64[ns]"),
+                             "answer_key_label": pd.Series(dtype=int)})
+    out = pd.concat(pieces, ignore_index=True).drop_duplicates().reset_index(drop=True)
+    out["day"] = pd.to_datetime(out["day"])
+    out["answer_key_label"] = 1
+    return out
+
+
 def answer_key_day_labels(events_df, key):
     """
     DataFrame(user, day, answer_key_label): one row per user-day that has

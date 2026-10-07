@@ -74,6 +74,7 @@ from src.supervised.dataset import (
     feature_matrix,
     group_of_day_column,
 )
+from src.supervised.feature_sets import FILE_EVENT_DAYS
 from src.supervised.models import DISPLAY_NAMES, MODEL_NAMES
 
 WINDOW = "window"
@@ -91,23 +92,12 @@ NO_HTTP_CONFIG = "file+device+logon"
 ALL_CONFIG = "all"
 CALENDAR_CONTROL = "calendar_only"
 
-HEURISTICS = {
-    "single_feature_http": ("http_offbaseline_share_7d__mean", "Heuristic: day mean of http_offbaseline_share_7d"),
-    "day_event_count": ("day_n_events", "Heuristic: events in the day (more = more anomalous)"),
-}
+HEURISTICS = FILE_EVENT_DAYS.heuristics   # the default feature set's heuristics (a FeatureSet carries its own)
 DEFAULT_REFERENCE = "single_feature_http"
 
 LABELING_DESCRIPTIONS = {
-    WINDOW: (
-        "A user-day is malicious if any of its file events falls inside the user's insider time "
-        "window. This is the TRAINING label of the supervised models."
-    ),
-    ANSWER_KEY: (
-        "A user-day is malicious if it has a file event on a day with an answer-key http event "
-        "for that insider, or during an answer-key removable-device session. Evaluation only: the "
-        "supervised models were NOT trained on it. It is built from the same kind of events the "
-        "http and device features measure, so it favours those features by construction."
-    ),
+    WINDOW: FILE_EVENT_DAYS.window_description,
+    ANSWER_KEY: FILE_EVENT_DAYS.answer_key_description,
 }
 WITHIN_INSIDER_DESCRIPTION = (
     "Only the INSIDERS' user-days are scored: positives are an insider's days inside their window, "
@@ -121,18 +111,19 @@ def model_key(model_name, config_name):
     return f"{model_name}[{config_name}]"
 
 
-def _column_indices_by_group(columns):
+def _column_indices_by_group(columns, group_fn):
     by_group = {}
     for i, column in enumerate(columns):
-        by_group.setdefault(group_of_day_column(column), []).append(i)
+        by_group.setdefault(group_fn(column), []).append(i)
     return by_group
 
 
-def _permutation_importance(table, scenario_by_user, model_names, labels, resamples, n_folds, seed, n_permutations):
+def _permutation_importance(table, scenario_by_user, model_names, labels, resamples, n_folds, seed, n_permutations,
+                            feature_set):
     """{model: {group: {"auroc_drop": ..., ci...}}} for the all-signals configuration."""
-    columns = day_feature_columns(GROUP_CONFIGS[ALL_CONFIG])
+    columns = feature_set.columns_fn(GROUP_CONFIGS[ALL_CONFIG])
     x = feature_matrix(table, columns)
-    group_to_columns = _column_indices_by_group(columns)
+    group_to_columns = _column_indices_by_group(columns, feature_set.group_fn)
     users = table["user"].to_numpy()
     folds = make_user_folds(users, scenario_by_user, n_folds=n_folds, seed=seed)
     importance = {}
@@ -170,6 +161,7 @@ def run_experiment(
     reference=DEFAULT_REFERENCE,
     n_permutations=5,
     strata_days=7,
+    feature_set=None,
 ):
     """
     day_table: build_user_day_table output plus `answer_key_label`.
@@ -182,6 +174,7 @@ def run_experiment(
         if name not in GROUP_CONFIGS:
             raise ValueError(f"Unknown group configuration {name!r}; choose from {list(GROUP_CONFIGS)}")
 
+    fs = feature_set or FILE_EVENT_DAYS
     day_table = add_calendar_controls(day_table)
     users = day_table["user"].to_numpy()
     scenario_of_day = np.array([int(scenario_by_user.get(u, 0)) for u in users])
@@ -190,13 +183,14 @@ def run_experiment(
 
     display_names = {}
     score_matrices = {}
-    for name, (column, display) in HEURISTICS.items():
-        score_matrices[name] = day_table[column].to_numpy(dtype=float)[None, :]
+    for name, (column, display) in fs.heuristics.items():
+        # NaN (not enough history yet) = neutral score 0: a heuristic must score every row
+        score_matrices[name] = np.nan_to_num(day_table[column].to_numpy(dtype=float), nan=0.0)[None, :]
         display_names[name] = display
 
     for model in model_names:
         for config in config_names:
-            columns = day_feature_columns(GROUP_CONFIGS[config])
+            columns = fs.columns_fn(GROUP_CONFIGS[config])
             key = model_key(model, config)
             score_matrices[key] = repeated_out_of_fold_scores(
                 model, users, feature_matrix(day_table, columns), y_train, scenario_by_user,
@@ -211,6 +205,7 @@ def run_experiment(
         )
         display_names[key] = f"CONTROL: {DISPLAY_NAMES[model]}, calendar only (date and weekday)"
 
+    descriptions = {WINDOW: fs.window_description, ANSWER_KEY: fs.answer_key_description}
     labelings = {WINDOW: y_train}
     if ANSWER_KEY_COLUMN in day_table.columns:
         labelings[ANSWER_KEY] = day_table[ANSWER_KEY_COLUMN].to_numpy().astype(int)
@@ -241,8 +236,8 @@ def run_experiment(
         results["labelings"][name] = evaluate_labeling(
             labels, scenario_of_day, insider_mask, score_matrices, resamples, reference=ref
         )
-        markdown.append(format_markdown(name, LABELING_DESCRIPTIONS[name], results["labelings"][name],
-                                        display_names, unit="user-days"))
+        markdown.append(format_markdown(name, descriptions[name], results["labelings"][name],
+                                        display_names, unit=fs.unit_label))
 
         # paired: the same model with the http signal vs without it
         contribution = {}
@@ -300,7 +295,7 @@ def run_experiment(
     # ---- confound check 3: permutation importance by signal group ----
     if ALL_CONFIG in config_names:
         importance = _permutation_importance(
-            day_table, scenario_by_user, model_names, y_train, resamples, n_folds, seed, n_permutations,
+            day_table, scenario_by_user, model_names, y_train, resamples, n_folds, seed, n_permutations, fs,
         )
         results["permutation_importance"] = importance
         lines = ["#### Permutation importance by signal group "
@@ -321,10 +316,10 @@ def run_experiment(
 
     # ---- the fix: date-stratified evaluation, and date-matched training ----
     strata = (day_table["calendar_day_index"].to_numpy() // strata_days).astype(int)
-    matched = {name: score_matrices[name] for name in HEURISTICS}
+    matched = {name: score_matrices[name] for name in fs.heuristics}
     for model in model_names:
         for config in list(config_names) + [CALENDAR_CONTROL]:
-            columns = CALENDAR_COLUMNS if config == CALENDAR_CONTROL else day_feature_columns(GROUP_CONFIGS[config])
+            columns = CALENDAR_COLUMNS if config == CALENDAR_CONTROL else fs.columns_fn(GROUP_CONFIGS[config])
             matched[model_key(model, config)] = repeated_out_of_fold_scores(
                 model, users, feature_matrix(day_table, columns), y_train, scenario_by_user,
                 n_folds=n_folds, n_repeats=n_repeats, seed=seed, strata=strata,
@@ -379,10 +374,10 @@ def run_experiment(
         def only_insiders(matrices):
             return {k: np.atleast_2d(v)[:, ins] for k, v in matrices.items()}
 
-        trained_on_insiders = {name: np.atleast_2d(score_matrices[name])[:, ins] for name in HEURISTICS}
+        trained_on_insiders = {name: np.atleast_2d(score_matrices[name])[:, ins] for name in fs.heuristics}
         for model in model_names:
             for config in list(config_names) + [CALENDAR_CONTROL]:
-                columns = CALENDAR_COLUMNS if config == CALENDAR_CONTROL else day_feature_columns(GROUP_CONFIGS[config])
+                columns = CALENDAR_COLUMNS if config == CALENDAR_CONTROL else fs.columns_fn(GROUP_CONFIGS[config])
                 trained_on_insiders[model_key(model, config)] = repeated_out_of_fold_scores(
                     model, users_i, feature_matrix(day_table, columns)[ins], y_i, scenario_by_user,
                     n_folds=min(n_folds, n_insider_users), n_repeats=n_repeats, seed=seed, strata=strata_i,

@@ -117,3 +117,29 @@ def test_no_answer_key_files_means_no_positive_sessions(tmp_path):
     key = load_answer_key_events(str(tmp_path))
     labels = answer_key_session_labels(_events(), key)
     assert labels.sum() == 0 and len(labels) == 5
+
+
+def test_answer_key_labeled_days_cover_http_days_and_every_day_of_a_device_session(tmp_path):
+    from src.common.evaluation.labelings import answer_key_labeled_days
+    key = load_answer_key_events(_write_answer_key(tmp_path))
+    days = answer_key_labeled_days(key)
+    assert {(r["user"], r["day"].strftime("%Y-%m-%d")) for _, r in days.iterrows()} == {
+        ("U1", "2010-06-28"), ("U9", "2010-07-10"), ("U1", "2010-08-03"),
+    }
+    assert (days["answer_key_label"] == 1).all()
+
+    overnight = {
+        "http_days": pd.DataFrame({"user": [], "day": [], "scenario": []}),
+        "device_intervals": pd.DataFrame({
+            "user": ["U1"], "scenario": [2],
+            "start": [pd.Timestamp("2010-08-03 23:30:00")], "end": [pd.Timestamp("2010-08-05 00:10:00")],
+        }),
+    }
+    spanned = answer_key_labeled_days(overnight)
+    assert spanned["day"].dt.strftime("%Y-%m-%d").tolist() == ["2010-08-03", "2010-08-04", "2010-08-05"]
+
+
+def test_answer_key_labeled_days_are_empty_without_a_key(tmp_path):
+    from src.common.evaluation.labelings import answer_key_labeled_days
+    days = answer_key_labeled_days(load_answer_key_events(str(tmp_path)))
+    assert len(days) == 0 and set(days.columns) == {"user", "day", "answer_key_label"}
