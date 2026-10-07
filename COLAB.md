@@ -231,6 +231,8 @@ and the full run (all models, 3 repeats, 500 resamples):
 !python scripts/supervised/cross_validate_all_days.py
 ```
 
+Every run also reports a second control, "per-user clock only" (days since the user's first activity and the user's day count). Date stratification removes the shared calendar but not this per-user clock, so in the insiders-only tables it should land near 0.5 (check the date-matched and insiders-only rows).
+
 Ablation (remove input columns and rerun, e.g. the cumulative device-use counter):
 
 ```

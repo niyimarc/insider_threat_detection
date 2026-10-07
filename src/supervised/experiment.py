@@ -68,6 +68,7 @@ from src.supervised.cross_validation import (
 )
 from src.supervised.dataset import (
     CALENDAR_COLUMNS,
+    USER_CLOCK_COLUMNS,
     WINDOW_LABEL,
     add_calendar_controls,
     day_feature_columns,
@@ -91,6 +92,13 @@ GROUP_CONFIGS = {
 NO_HTTP_CONFIG = "file+device+logon"
 ALL_CONFIG = "all"
 CALENDAR_CONTROL = "calendar_only"
+CLOCK_CONTROL = "user_clock_only"
+# control name -> (input columns, description). Controls are the same model given ONLY a time variable.
+CONTROLS = {
+    CALENDAR_CONTROL: (CALENDAR_COLUMNS, "calendar only (date and weekday)"),
+    CLOCK_CONTROL: (USER_CLOCK_COLUMNS,
+                    "per-user clock only (days since the user's first activity, and the user's day count)"),
+}
 
 HEURISTICS = FILE_EVENT_DAYS.heuristics   # the default feature set's heuristics (a FeatureSet carries its own)
 DEFAULT_REFERENCE = "single_feature_http"
@@ -240,13 +248,14 @@ def run_experiment(
                 n_folds=n_folds, n_repeats=n_repeats, seed=seed,
             )
             display_names[key] = f"{DISPLAY_NAMES[model]}, signals: {config}"
-        # the control: the SAME model, given only the date
-        key = model_key(model, CALENDAR_CONTROL)
-        score_matrices[key] = repeated_out_of_fold_scores(
-            model, users, feature_matrix(day_table, CALENDAR_COLUMNS), y_train, scenario_by_user,
-            n_folds=n_folds, n_repeats=n_repeats, seed=seed,
-        )
-        display_names[key] = f"CONTROL: {DISPLAY_NAMES[model]}, calendar only (date and weekday)"
+        # the controls: the SAME model, given only the date, or only the user's own clock
+        for control, (control_columns, control_text) in CONTROLS.items():
+            key = model_key(model, control)
+            score_matrices[key] = repeated_out_of_fold_scores(
+                model, users, feature_matrix(day_table, control_columns), y_train, scenario_by_user,
+                n_folds=n_folds, n_repeats=n_repeats, seed=seed,
+            )
+            display_names[key] = f"CONTROL: {DISPLAY_NAMES[model]}, {control_text}"
 
     descriptions = {WINDOW: fs.window_description, ANSWER_KEY: fs.answer_key_description}
     labelings = {WINDOW: y_train}
@@ -383,8 +392,8 @@ def run_experiment(
     strata = (day_table["calendar_day_index"].to_numpy() // strata_days).astype(int)
     matched = {name: score_matrices[name] for name in fs.heuristics}
     for model in model_names:
-        for config in list(config_names) + [CALENDAR_CONTROL]:
-            columns = CALENDAR_COLUMNS if config == CALENDAR_CONTROL else fs.columns_fn(GROUP_CONFIGS[config])
+        for config in list(config_names) + list(CONTROLS):
+            columns = CONTROLS[config][0] if config in CONTROLS else fs.columns_fn(GROUP_CONFIGS[config])
             matched[model_key(model, config)] = repeated_out_of_fold_scores(
                 model, users, feature_matrix(day_table, columns), y_train, scenario_by_user,
                 n_folds=n_folds, n_repeats=n_repeats, seed=seed, strata=strata,
@@ -441,8 +450,8 @@ def run_experiment(
 
         trained_on_insiders = {name: np.atleast_2d(score_matrices[name])[:, ins] for name in fs.heuristics}
         for model in model_names:
-            for config in list(config_names) + [CALENDAR_CONTROL]:
-                columns = CALENDAR_COLUMNS if config == CALENDAR_CONTROL else fs.columns_fn(GROUP_CONFIGS[config])
+            for config in list(config_names) + list(CONTROLS):
+                columns = CONTROLS[config][0] if config in CONTROLS else fs.columns_fn(GROUP_CONFIGS[config])
                 trained_on_insiders[model_key(model, config)] = repeated_out_of_fold_scores(
                     model, users_i, feature_matrix(day_table, columns)[ins], y_i, scenario_by_user,
                     n_folds=min(n_folds, n_insider_users), n_repeats=n_repeats, seed=seed, strata=strata_i,

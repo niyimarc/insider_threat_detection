@@ -137,6 +137,29 @@ def test_within_insider_comparison_uses_only_insiders_and_is_paired_against_the_
     assert "within-insider" in markdown
 
 
+def test_user_clock_control_is_reported_and_is_never_an_input(experiment):
+    from src.supervised.dataset import USER_CLOCK_COLUMNS
+    results, markdown = experiment
+    models = results["labelings"]["window"]["models"]
+    for model in ("logistic", "gradient_boosting"):
+        assert model_key(model, "user_clock_only") in models
+    assert "per-user clock only" in markdown
+    for groups in GROUP_CONFIGS.values():
+        assert not set(USER_CLOCK_COLUMNS) & set(day_feature_columns(groups))
+
+
+def test_user_clock_columns_count_from_each_users_own_first_day():
+    from src.supervised.dataset import add_calendar_controls
+    table = pd.DataFrame({
+        "user": ["A", "A", "A", "B", "B"],
+        "day": pd.to_datetime(["2010-01-04", "2010-01-05", "2010-01-10", "2010-01-20", "2010-01-22"]),
+    })
+    out = add_calendar_controls(table)
+    assert out["user_day_index"].tolist() == [0, 1, 6, 0, 2]
+    assert out["user_active_day_rank"].tolist() == [0, 1, 2, 0, 1]
+    assert out["calendar_day_index"].tolist() == [0, 1, 6, 16, 18]
+
+
 def test_calendar_columns_are_never_inputs_of_the_real_configurations():
     from src.supervised.dataset import CALENDAR_COLUMNS
     for config, groups in GROUP_CONFIGS.items():

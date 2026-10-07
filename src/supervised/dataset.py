@@ -96,18 +96,29 @@ def build_user_day_table(events_df):
 # only WHEN a day happened. A model that scores well on these alone is
 # recognising the calendar, not behaviour (see experiment.py).
 CALENDAR_COLUMNS = ("calendar_day_index", "calendar_day_of_week")
+# The PER-USER clock: how far into this user's own history a day is. Date
+# stratification removes the shared calendar but not this, because windows
+# sit late in a user's history. A control only, never an input.
+USER_CLOCK_COLUMNS = ("user_day_index", "user_active_day_rank")
 
 
 def add_calendar_controls(day_table):
     """
     Adds `calendar_day_index` (days since the earliest day in the table)
-    and `calendar_day_of_week` (0 = Monday). A deterministic function of
-    the date, so it carries no information from any other row.
+    and `calendar_day_of_week` (0 = Monday), and the per-user clock:
+    `user_day_index` (calendar days since the user's first row) and
+    `user_active_day_rank` (number of the user's earlier rows). Each is a
+    deterministic function of the user's own dates, so none uses a label.
     """
     table = day_table.copy()
     days = pd.to_datetime(table["day"])
     table["calendar_day_index"] = (days - days.min()).dt.days.astype(float)
     table["calendar_day_of_week"] = days.dt.dayofweek.astype(float)
+    first_day = days.groupby(table["user"]).transform("min")
+    table["user_day_index"] = (days - first_day).dt.days.astype(float)
+    table["user_active_day_rank"] = (
+        pd.Series(days.to_numpy(), index=table.index).groupby(table["user"]).rank(method="first") - 1
+    ).astype(float)
     return table
 
 
