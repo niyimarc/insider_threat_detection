@@ -51,8 +51,8 @@ from src.supervised.experiment import ALL_CONFIG, CONTROLS, GROUP_CONFIGS
 from src.supervised.feature_sets import ALL_DAYS
 from src.supervised.models import ALL_MODEL_NAMES, DISPLAY_NAMES
 from src.supervised.user_level import (
-    ALERT_QUANTILE, TOP_K_DAYS, alert_analysis, precision_at_k, ranked_user_table, user_level_auroc,
-    user_scores, windows_from_labels,
+    ALERT_QUANTILE, TOP_K_DAYS, alert_analysis, matched_period_auroc, precision_at_k, ranked_user_table,
+    user_level_auroc, user_scores, windows_from_labels,
 )
 
 PROCESSED_DIR = os.path.join(_PROJECT_ROOT, "data", "processed")
@@ -193,6 +193,37 @@ def main():
                         row += " n/a |"
                 md.append(row)
             md.append("\n`*` = the interval excludes 0.\n")
+
+    md.append("## Matched-period check: insiders vs benign users over the SAME calendar dates\n")
+    md.append(
+        "Each insider's score over their own window is compared with every benign user's score over the same "
+        "dates (both = mean of the highest k day scores, k = 7 or the number of the insider's active window days "
+        "if fewer). A difference in WHEN insiders and benign users were observed cannot help here: a score that "
+        "depends only on the date gives exactly 0.5. This is the strictest person-level comparison; it uses the "
+        "insider's window, so it answers 'during the malicious period, does the insider outscore everyone else "
+        "on those same days?'. 'Coverage' is the share of insider-benign pairs with enough benign days to compare.\n")
+    for training in args.training:
+        keys = [k for k in day_scores if meta[k][1] == training]
+        reference = f"gradient_boosting/{training}" if f"gradient_boosting/{training}" in keys else None
+        res = matched_period_auroc(users, days, {k: day_scores[k] for k in keys}, windows,
+                                   n_boot=args.n_boot, seed=args.seed, reference=reference)
+        results.setdefault("matched_period", {})[training] = res
+        md.append(f"#### {TRAINING_TEXT[training]}\n")
+        md.append("| Model | matched-period AUROC [95% CI] | coverage |" +
+                  (" minus gradient boosting [95% CI] |" if reference else ""))
+        md.append("|---|---|---|" + ("---|" if reference else ""))
+        for k in keys:
+            row = f"| {names[k]} | {_fmt_ci(res[k])} | {100 * res[k]['coverage']:.0f}% |"
+            if reference:
+                if k == reference:
+                    row += " (reference) |"
+                elif "auroc_minus_reference" in res[k]:
+                    d = res[k]["auroc_minus_reference"]
+                    row += f" {d['mean']:+.3f} [{d['ci_low']:+.3f}, {d['ci_high']:+.3f}]{' *' if d['ci_excludes_zero'] else ''} |"
+                else:
+                    row += " n/a |"
+            md.append(row)
+        md.append("\n`*` = the interval excludes 0.\n")
 
     md.append("## Of the highest-ranked users, how many are insiders? (rule: top_k_mean)\n")
     md.append("| Model | top 5 | top 10 | insiders among ALL users (random pick) |\n|---|---|---|---|")

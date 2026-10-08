@@ -43,6 +43,62 @@ def test_user_level_auroc_without_both_groups_is_nan_not_an_error():
     assert np.isnan(res["m"]["auroc"])
 
 
+def _matched_period_data():
+    days = pd.date_range("2010-01-01", periods=10)
+    rows, good = [], []
+    def add(user, score_of_day):
+        for d, day in enumerate(days, start=1):
+            rows.append((user, day))
+            good.append(score_of_day(d))
+    add("I1", lambda d: 10.0 if 3 <= d <= 5 else 0.0)
+    add("I2", lambda d: 10.0 if 6 <= d <= 8 else 0.0)
+    add("B1", lambda d: 5.0)
+    add("B2", lambda d: 20.0 if 6 <= d <= 8 else 0.0)
+    frame = pd.DataFrame(rows, columns=["user", "day"])
+    windows = {"I1": (days[2], days[4]), "I2": (days[5], days[7])}
+    return frame, np.array(good), windows
+
+
+def test_matched_period_compares_each_insider_with_benign_users_on_the_same_dates():
+    from src.supervised.user_level import matched_period_auroc
+    frame, good, windows = _matched_period_data()
+    res = matched_period_auroc(frame["user"], frame["day"], {"good": good, "flat": np.ones(len(good))},
+                               windows, n_boot=40)
+    # I1 beats B1 and B2 on days 3-5; I2 beats B1 but loses to B2 on days 6-8 -> 3 of 4 pairs
+    assert res["good"]["auroc"] == pytest.approx(0.75)
+    assert res["flat"]["auroc"] == pytest.approx(0.5)               # ties count one half
+    assert res["good"]["coverage"] == 1.0
+
+
+def test_a_score_that_depends_only_on_the_date_cannot_separate_insiders_in_the_matched_period_check():
+    from src.supervised.user_level import matched_period_auroc
+    frame, _, windows = _matched_period_data()
+    date_only = (frame["day"] - frame["day"].min()).dt.days.to_numpy().astype(float)
+    res = matched_period_auroc(frame["user"], frame["day"], {"date": date_only}, windows, n_boot=40)
+    assert res["date"]["auroc"] == pytest.approx(0.5)
+
+
+def test_matched_period_skips_benign_users_without_enough_days_in_the_window():
+    from src.supervised.user_level import matched_period_auroc
+    frame, good, windows = _matched_period_data()
+    extra = pd.DataFrame({"user": ["B3"], "day": [pd.Timestamp("2010-01-01")]})        # B3 is active on day 1 only
+    frame2 = pd.concat([frame, extra], ignore_index=True)
+    good2 = np.r_[good, 99.0]
+    res = matched_period_auroc(frame2["user"], frame2["day"], {"g": good2}, windows, n_boot=40)
+    assert res["g"]["auroc"] == pytest.approx(0.75)                  # B3 contributes nothing
+    assert res["g"]["coverage"] == pytest.approx(4 / 6)
+
+
+def test_matched_period_paired_difference_and_missing_groups():
+    from src.supervised.user_level import matched_period_auroc
+    frame, good, windows = _matched_period_data()
+    res = matched_period_auroc(frame["user"], frame["day"], {"good": good, "flat": np.ones(len(good))},
+                               windows, n_boot=40, reference="flat")
+    assert res["good"]["auroc_minus_reference"]["mean"] > 0.1       # about 0.25; resampling moves it a little
+    none = matched_period_auroc(frame["user"], frame["day"], {"g": good}, windows={}, n_boot=10)
+    assert np.isnan(none["g"]["auroc"])
+
+
 def test_precision_at_k_reports_the_random_baseline():
     ranked = pd.Series({"I1": 9, "B1": 8, "I2": 7, "B2": 1, "B3": 0, "I3": -1}, dtype=float)
     p = precision_at_k(ranked, {"I1", "I2", "I3"}, ks=(2, 3))

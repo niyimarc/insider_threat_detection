@@ -265,6 +265,8 @@ Scores every user-day out-of-fold, then reports per PERSON: do insiders rank abo
 !python scripts/supervised/detect_insiders.py --models gradient_boosting gru --tag dev
 ```
 
+The report also has a "Matched-period check": each insider's score over their own window against every benign user's score over the SAME calendar dates (a date-only score gives exactly 0.5), the strictest person-level comparison.
+
 Quick pass (gradient boosting only): `--models gradient_boosting --n-repeats 1 --tag quick`. Outputs: `results/supervised/detector_dev_<tag>.md/.json` and `detector_users_<tag>_<model>_<training>.csv`. Dev only: there is no locked-partition option.
 
 ## 4. When Colab disconnects

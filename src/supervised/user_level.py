@@ -93,6 +93,78 @@ def user_level_auroc(score_by_model, insider_users, n_boot=1000, seed=0, referen
     return out
 
 
+def matched_period_auroc(users, days, score_by_model, windows, k=TOP_K_DAYS, n_boot=1000, seed=0, reference=None):
+    """
+    The person-level comparison with the calendar held fixed. For each insider, the insider's
+    score over THEIR OWN WINDOW is compared with every benign user's score over THE SAME
+    CALENDAR DATES, so a difference in when insiders and benign users were observed (or in how
+    long) cannot separate them: a score that depends only on the date gives exactly 0.5.
+
+    Both sides use the mean of their `k_eff` highest day scores, where k_eff = min(k, the number
+    of the insider's active days in the window); a benign user with fewer than k_eff active days
+    in those dates is skipped for that insider (reported as `coverage`).
+
+    score_by_model: {name: array of day scores aligned with users/days}. windows:
+    {insider: (first window day, last window day)}. Returns {name: {"auroc", "ci_low", "ci_high",
+    "coverage", ["auroc_minus_reference": {...}]}}; intervals resample insiders and benign users
+    with the same draws for every model, so differences are paired.
+    """
+    users = np.asarray(users)
+    days = pd.to_datetime(np.asarray(days))
+    names = list(score_by_model)
+    scores = {n: np.asarray(score_by_model[n], dtype=float) for n in names}
+    positions = dict(pd.Series(np.arange(len(users))).groupby(users).indices)
+    insiders = sorted(u for u in windows if u in positions)
+    benign = sorted(u for u in positions if u not in windows)
+    empty = {n: {"auroc": float("nan"), "ci_low": float("nan"), "ci_high": float("nan"), "coverage": 0.0}
+             for n in names}
+    if not insiders or not benign:
+        return empty
+
+    def top_mean(values, k_eff):
+        return float(np.sort(values)[::-1][:k_eff].mean())
+
+    wins = {n: np.full((len(insiders), len(benign)), np.nan) for n in names}
+    for i, insider in enumerate(insiders):
+        start, end = windows[insider]
+        own = positions[insider][(days[positions[insider]] >= start) & (days[positions[insider]] <= end)]
+        if len(own) == 0:
+            continue
+        k_eff = min(k, len(own))
+        for j, other in enumerate(benign):
+            rows = positions[other][(days[positions[other]] >= start) & (days[positions[other]] <= end)]
+            if len(rows) < k_eff:
+                continue
+            for n in names:
+                a, b = top_mean(scores[n][own], k_eff), top_mean(scores[n][rows], k_eff)
+                wins[n][i, j] = 1.0 if a > b else (0.5 if a == b else 0.0)
+
+    def mean_of(matrix, rows=None, cols=None):
+        sub = matrix if rows is None else matrix[np.ix_(rows, cols)]
+        return float(np.nanmean(sub)) if np.isfinite(sub).any() else float("nan")
+
+    rng = np.random.default_rng(seed)
+    draws = [(rng.integers(0, len(insiders), len(insiders)), rng.integers(0, len(benign), len(benign)))
+             for _ in range(n_boot)]
+    boot = {n: np.array([mean_of(wins[n], r, c) for r, c in draws]) for n in names}
+    out = {}
+    for n in names:
+        low, high = np.nanpercentile(boot[n], [2.5, 97.5])
+        out[n] = {"auroc": mean_of(wins[n]), "ci_low": float(low), "ci_high": float(high),
+                  "coverage": float(np.isfinite(wins[n]).mean())}
+    if reference in boot:
+        for n in names:
+            if n == reference:
+                continue
+            diff = boot[n] - boot[reference]
+            low, high = np.nanpercentile(diff, [2.5, 97.5])
+            out[n]["auroc_minus_reference"] = {
+                "mean": float(np.nanmean(diff)), "ci_low": float(low), "ci_high": float(high),
+                "ci_excludes_zero": bool(low > 0 or high < 0),
+            }
+    return out
+
+
 def precision_at_k(user_score_series, insider_users, ks=(5, 10)):
     """
     {k: {"insiders_in_top_k", "k", "baseline_share"}}: how many of the k highest-scored
