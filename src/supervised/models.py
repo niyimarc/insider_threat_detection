@@ -22,9 +22,26 @@ import numpy as np
 
 MODEL_NAMES = ("logistic", "gradient_boosting")
 
+# A SEQUENCE model scores a day from the user's previous SEQ_LEN active days
+# (that day last). It takes the flattened window matrix of
+# src/supervised/sequences.py, not a plain feature matrix.
+#
+#   gru   one-layer GRU (32 hidden units) over the window, a linear scoring
+#         head, trained with the same balanced / date-matched weights as the
+#         other models; fixed hyperparameters, nothing tuned.
+SEQUENCE_MODEL_NAMES = ("gru",)
+ALL_MODEL_NAMES = MODEL_NAMES + SEQUENCE_MODEL_NAMES
+SEQ_LEN = 14
+GRU_HIDDEN = 32
+GRU_EPOCHS = 10
+GRU_BATCH = 256
+GRU_LEARNING_RATE = 2e-3
+GRU_WEIGHT_DECAY = 1e-4
+
 DISPLAY_NAMES = {
     "logistic": "Logistic regression (supervised)",
     "gradient_boosting": "Gradient boosting (supervised)",
+    "gru": "GRU over the previous 14 days (supervised)",
 }
 
 
@@ -100,6 +117,87 @@ def signed_log(x):
     return np.sign(x) * np.log1p(np.abs(x))
 
 
+def _fit_gru(x_train, y_train, weights, seed):
+    """
+    x_train: (n, SEQ_LEN * (d + 1)) window matrix (see sequences.py): per step the d
+    features (NaN where the step is padding or the value is missing) and a 0/1 mask
+    channel. Statistics (medians, mean, std) come from the TRAINING rows' real steps
+    only. Returns predict(x) -> logit scores, row-wise (no dependence on the batch).
+    Rows with weight 0 (date-matched training) are dropped, they carry no signal.
+    """
+    import torch
+    from torch import nn
+
+    steps = SEQ_LEN
+    x_train = np.asarray(x_train, dtype=float)
+    block = x_train.shape[1] // steps
+    if block * steps != x_train.shape[1] or block < 2:
+        raise ValueError(f"A GRU input must have {steps} * (features + 1) columns, got {x_train.shape[1]}.")
+    d = block - 1
+
+    keep = np.asarray(weights, dtype=float) > 0
+    if not keep.any():
+        return lambda x: np.zeros(len(x), dtype=float)
+    y_train = np.asarray(y_train)[keep]
+    row_weights = np.asarray(weights, dtype=float)[keep]
+    x_train = x_train[keep]
+
+    seq = x_train.reshape(len(x_train), steps, block)
+    real_steps = seq[:, :, d] > 0.5
+    valid = seq[:, :, :d][real_steps]
+    medians = train_medians(valid)
+    valid = signed_log(apply_medians(valid, medians))
+    mean = valid.mean(axis=0) if len(valid) else np.zeros(d)
+    std = valid.std(axis=0) if len(valid) else np.ones(d)
+    std = np.where(std < 1e-8, 1.0, std)
+
+    def prepare(x):
+        s = np.asarray(x, dtype=float).reshape(len(x), steps, block)
+        real = s[:, :, d] > 0.5
+        flat = apply_medians(s[:, :, :d].reshape(-1, d), medians)
+        flat = ((signed_log(flat) - mean) / std).reshape(len(x), steps, d) * real[:, :, None]
+        return np.concatenate([flat, real[:, :, None].astype(float)], axis=2).astype(np.float32)
+
+    class _Net(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.gru = nn.GRU(d + 1, GRU_HIDDEN, batch_first=True)
+            self.head = nn.Linear(GRU_HIDDEN, 1)
+
+        def forward(self, batch):
+            _, hidden = self.gru(batch)
+            return self.head(hidden[-1]).squeeze(-1)
+
+    inputs = torch.from_numpy(prepare(x_train))
+    targets = torch.from_numpy(y_train.astype(np.float32))
+    row_weights = torch.from_numpy((row_weights / row_weights.mean()).astype(np.float32))
+
+    torch.manual_seed(seed)
+    generator = torch.Generator().manual_seed(seed)
+    net = _Net()
+    optimiser = torch.optim.Adam(net.parameters(), lr=GRU_LEARNING_RATE, weight_decay=GRU_WEIGHT_DECAY)
+    loss_fn = nn.BCEWithLogitsLoss(reduction="none")
+    net.train()
+    for _ in range(GRU_EPOCHS):
+        order = torch.randperm(len(inputs), generator=generator)
+        for start in range(0, len(order), GRU_BATCH):
+            idx = order[start:start + GRU_BATCH]
+            optimiser.zero_grad()
+            loss = (loss_fn(net(inputs[idx]), targets[idx]) * row_weights[idx]).mean()
+            loss.backward()
+            optimiser.step()
+    net.eval()
+
+    def predict(x):
+        out = []
+        with torch.no_grad():
+            for start in range(0, len(x), 2048):
+                out.append(net(torch.from_numpy(prepare(np.asarray(x)[start:start + 2048]))).numpy())
+        return np.concatenate(out).astype(float) if out else np.zeros(0)
+
+    return predict
+
+
 def fit_model(model_name, x_train, y_train, seed=0, sample_weight=None):
     """
     `sample_weight` replaces the default class-balanced weights (for
@@ -111,15 +209,18 @@ def fit_model(model_name, x_train, y_train, seed=0, sample_weight=None):
     rows. If the training labels contain a single class there is nothing
     to learn: the predictor returns zeros.
     """
-    if model_name not in MODEL_NAMES:
-        raise ValueError(f"Unknown supervised model {model_name!r}; choose from {MODEL_NAMES}.")
+    if model_name not in ALL_MODEL_NAMES:
+        raise ValueError(f"Unknown supervised model {model_name!r}; choose from {ALL_MODEL_NAMES}.")
     y_train = np.asarray(y_train).astype(int)
     if y_train.sum() == 0 or y_train.sum() == len(y_train):
         return lambda x: np.zeros(len(x), dtype=float)
 
+    weights = balanced_sample_weights(y_train) if sample_weight is None else np.asarray(sample_weight, dtype=float)
+    if model_name in SEQUENCE_MODEL_NAMES:
+        return _fit_gru(x_train, y_train, weights, seed)
+
     medians = train_medians(x_train)
     a = apply_medians(x_train, medians)
-    weights = balanced_sample_weights(y_train) if sample_weight is None else np.asarray(sample_weight, dtype=float)
 
     if model_name == "logistic":
         from sklearn.linear_model import LogisticRegression

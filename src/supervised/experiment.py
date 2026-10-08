@@ -76,7 +76,15 @@ from src.supervised.dataset import (
     group_of_day_column,
 )
 from src.supervised.feature_sets import FILE_EVENT_DAYS
-from src.supervised.models import DISPLAY_NAMES, MODEL_NAMES
+from src.supervised.models import ALL_MODEL_NAMES, DISPLAY_NAMES, MODEL_NAMES, SEQUENCE_MODEL_NAMES
+from src.supervised.sequences import build_sequence_matrix
+
+
+def _matrix(model, table, columns):
+    """The model's input: a plain feature matrix, or the user's window of days for a sequence model."""
+    if model in SEQUENCE_MODEL_NAMES:
+        return build_sequence_matrix(table, columns)
+    return feature_matrix(table, columns)
 
 WINDOW = "window"
 ANSWER_KEY = "answer_key"
@@ -219,7 +227,7 @@ def run_experiment(
     Returns (results_dict, markdown_text).
     """
     for name in model_names:
-        if name not in MODEL_NAMES:
+        if name not in ALL_MODEL_NAMES:
             raise ValueError(f"Unknown model {name!r}")
     for name in config_names:
         if name not in GROUP_CONFIGS:
@@ -244,7 +252,7 @@ def run_experiment(
             columns = fs.columns_fn(GROUP_CONFIGS[config])
             key = model_key(model, config)
             score_matrices[key] = repeated_out_of_fold_scores(
-                model, users, feature_matrix(day_table, columns), y_train, scenario_by_user,
+                model, users, _matrix(model, day_table, columns), y_train, scenario_by_user,
                 n_folds=n_folds, n_repeats=n_repeats, seed=seed,
             )
             display_names[key] = f"{DISPLAY_NAMES[model]}, signals: {config}"
@@ -252,7 +260,7 @@ def run_experiment(
         for control, (control_columns, control_text) in CONTROLS.items():
             key = model_key(model, control)
             score_matrices[key] = repeated_out_of_fold_scores(
-                model, users, feature_matrix(day_table, control_columns), y_train, scenario_by_user,
+                model, users, _matrix(model, day_table, control_columns), y_train, scenario_by_user,
                 n_folds=n_folds, n_repeats=n_repeats, seed=seed,
             )
             display_names[key] = f"CONTROL: {DISPLAY_NAMES[model]}, {control_text}"
@@ -346,9 +354,11 @@ def run_experiment(
                                         results["within_insider"], display_names, unit="insider user-days"))
 
     # ---- confound check 3: permutation importance by signal group ----
-    if ALL_CONFIG in config_names:
+    # (tabular models only: a sequence model's input is a window, not a column per feature)
+    importance_models = tuple(m for m in model_names if m not in SEQUENCE_MODEL_NAMES)
+    if ALL_CONFIG in config_names and importance_models:
         importance = _permutation_importance(
-            day_table, scenario_by_user, model_names, y_train, resamples, n_folds, seed, n_permutations, fs,
+            day_table, scenario_by_user, importance_models, y_train, resamples, n_folds, seed, n_permutations, fs,
         )
         results["permutation_importance"] = importance
         lines = ["#### Permutation importance by signal group "
@@ -369,7 +379,7 @@ def run_experiment(
 
         # which individual columns carry the group-level result
         feature_importance = _feature_importance(
-            day_table, scenario_by_user, model_names, y_train, resamples, n_folds, seed, n_permutations, fs,
+            day_table, scenario_by_user, importance_models, y_train, resamples, n_folds, seed, n_permutations, fs,
         )
         results["feature_importance"] = feature_importance
         lines = ["#### Permutation importance by individual feature "
@@ -395,7 +405,7 @@ def run_experiment(
         for config in list(config_names) + list(CONTROLS):
             columns = CONTROLS[config][0] if config in CONTROLS else fs.columns_fn(GROUP_CONFIGS[config])
             matched[model_key(model, config)] = repeated_out_of_fold_scores(
-                model, users, feature_matrix(day_table, columns), y_train, scenario_by_user,
+                model, users, _matrix(model, day_table, columns), y_train, scenario_by_user,
                 n_folds=n_folds, n_repeats=n_repeats, seed=seed, strata=strata,
             )
     normal_eval = evaluate_stratified(y_train, score_matrices, strata, resamples, reference=ref)
@@ -453,7 +463,7 @@ def run_experiment(
             for config in list(config_names) + list(CONTROLS):
                 columns = CONTROLS[config][0] if config in CONTROLS else fs.columns_fn(GROUP_CONFIGS[config])
                 trained_on_insiders[model_key(model, config)] = repeated_out_of_fold_scores(
-                    model, users_i, feature_matrix(day_table, columns)[ins], y_i, scenario_by_user,
+                    model, users_i, _matrix(model, day_table, columns)[ins], y_i, scenario_by_user,
                     n_folds=min(n_folds, n_insider_users), n_repeats=n_repeats, seed=seed, strata=strata_i,
                 )
         evals = {

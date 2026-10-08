@@ -233,6 +233,14 @@ and the full run (all models, 3 repeats, 500 resamples):
 
 Every run also reports a second control, "per-user clock only" (days since the user's first activity and the user's day count). Date stratification removes the shared calendar but not this per-user clock, so in the insiders-only tables it should land near 0.5 (check the date-matched and insiders-only rows).
 
+Sequence model (a one-layer GRU over each user's previous 14 active days, fixed hyperparameters, same evaluation and controls; CPU is enough, the first pass takes roughly half an hour):
+
+```
+!python scripts/supervised/cross_validate_all_days.py --models gru --n-repeats 1 --tag gru
+```
+
+It skips the permutation-importance sections (a window input has no single column per feature).
+
 Ablation (remove input columns and rerun, e.g. the cumulative device-use counter):
 
 ```

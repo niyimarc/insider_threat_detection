@@ -39,7 +39,7 @@ from src.common.preprocessing.load import load_device_events, load_logon_events
 from src.supervised.all_days import build_all_user_days
 from src.supervised.experiment import GROUP_CONFIGS, run_experiment
 from src.supervised.feature_sets import ALL_DAYS, without_columns
-from src.supervised.models import MODEL_NAMES
+from src.supervised.models import ALL_MODEL_NAMES, MODEL_NAMES
 
 PROCESSED_DIR = os.path.join(_PROJECT_ROOT, "data", "processed")
 DATA_PATH = os.path.join(PROCESSED_DIR, "file_events_processed.parquet")
@@ -60,7 +60,8 @@ def _resolve(path):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--models", nargs="+", default=list(MODEL_NAMES), choices=MODEL_NAMES)
+    parser.add_argument("--models", nargs="+", default=list(MODEL_NAMES), choices=ALL_MODEL_NAMES,
+                        help="logistic, gradient_boosting (default), gru (sequence model over the previous 14 days)")
     parser.add_argument("--configs", nargs="+", default=list(GROUP_CONFIGS), choices=list(GROUP_CONFIGS))
     parser.add_argument("--n-folds", type=int, default=5)
     parser.add_argument("--n-repeats", type=int, default=3)
