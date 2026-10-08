@@ -239,6 +239,8 @@ Sequence model (a one-layer GRU over each user's previous 14 active days, fixed 
 !python scripts/supervised/cross_validate_all_days.py --models gru --n-repeats 1 --tag gru
 ```
 
+Every run's last section is "Detection by time since the window started": the insiders-only, date-matched result split by days since the start of the insider's window (0-6, 7-27, 28+). Read the first bin: it shows whether a model flags the START of the window or only recognises a sustained change deep inside it.
+
 Head-to-head against gradient boosting (both models in one run, every "minus ..." column paired against gradient boosting with all signals):
 
 ```

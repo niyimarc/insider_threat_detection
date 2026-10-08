@@ -51,6 +51,7 @@ Pure given a day table: no file access, testable on synthetic data.
 """
 
 import numpy as np
+import pandas as pd
 
 from src.common.evaluation.bootstrap import (
     interval,
@@ -78,6 +79,27 @@ from src.supervised.dataset import (
 from src.supervised.feature_sets import FILE_EVENT_DAYS
 from src.supervised.models import ALL_MODEL_NAMES, DISPLAY_NAMES, MODEL_NAMES, SEQUENCE_MODEL_NAMES
 from src.supervised.sequences import build_sequence_matrix
+
+
+ONSET_BINS = {                       # label -> (first day, last day) since the window started, inclusive
+    "days 0-6": (0, 6),
+    "days 7-27": (7, 27),
+    "days 28+": (28, float("inf")),
+}
+
+
+def _days_since_window_start(table):
+    """
+    Per row: calendar days since the start of the user's insider window (NaN on non-malicious
+    rows). The start is the user's first window-labelled day in this table.
+    """
+    days = pd.to_datetime(table["day"])
+    malicious = table[WINDOW_LABEL].to_numpy().astype(int) == 1
+    start = days.where(malicious).groupby(table["user"]).transform("min")
+    # np.array(..., copy=True): newer pandas returns READ-ONLY arrays from .to_numpy()
+    out = np.array((days - start).dt.days, dtype=float, copy=True)
+    out[~malicious] = np.nan
+    return out
 
 
 def _matrix(model, table, columns):
@@ -499,6 +521,37 @@ def run_experiment(
             markdown.append(format_stratified_markdown(
                 "Insiders only; models trained on INSIDERS ONLY, date-matched", "Window labelling.",
                 evals["trained_on_insiders_date_matched"], display_names))
+
+            # how soon after the window starts is it detected?
+            onset_days = _days_since_window_start(day_table)[ins]
+            onset = {}
+            markdown.append(
+                "### Detection by time since the window started\n\n"
+                "Insiders only, models trained on insiders and date-matched (the third table above). The "
+                "malicious rows are split by how many days after the START of the insider's window they fall; "
+                "each group is compared with the same non-malicious insider days from the same calendar week as "
+                "before. The first bin is the hardest and the most useful in practice: a model that is only "
+                "good deep inside the window is recognising a sustained regime, not flagging the start. The "
+                "start of a window is taken as the first day carrying the window label in this table, and the "
+                "scores are the same out-of-fold scores as above (nothing is retrained).\n"
+            )
+            for bin_name, (low, high) in ONSET_BINS.items():
+                in_bin = (y_i == 1) & (onset_days >= low) & (onset_days <= high)
+                if not in_bin.any():
+                    onset[bin_name] = {"n_malicious_rows": 0}
+                    markdown.append(f"#### {bin_name}\n\nNo malicious rows in this bin.\n")
+                    continue
+                rows = (y_i == 0) | in_bin
+                sub = evaluate_stratified(
+                    y_i[rows], {k: v[:, rows] for k, v in trained_on_insiders.items()}, strata_i[rows],
+                    make_user_resamples(users_i[rows], n_boot=n_boot, seed=0), reference=ref,
+                )
+                sub["n_malicious_rows"] = int(in_bin.sum())
+                onset[bin_name] = sub
+                markdown.append(format_stratified_markdown(
+                    f"Malicious days {bin_name} after the window start ({int(in_bin.sum())} malicious rows)",
+                    "Window labelling.", sub, display_names))
+            evals["onset"] = onset
             lines = []
             for model in model_names:
                 if NO_HTTP_CONFIG in config_names and ALL_CONFIG in config_names:

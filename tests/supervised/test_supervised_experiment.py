@@ -304,6 +304,29 @@ def test_a_real_behavioural_signal_survives_the_insider_only_check(insider_exper
     assert 0.3 < models[model_key("gradient_boosting", "calendar_only")]["auroc"]["mean"] < 0.7
 
 
+def test_days_since_window_start_counts_from_each_users_first_labelled_day():
+    from src.supervised.experiment import _days_since_window_start
+    table = pd.DataFrame({
+        "user": ["A"] * 5 + ["B"] * 3,
+        "day": pd.to_datetime(["2010-01-01", "2010-01-02", "2010-01-04", "2010-01-05", "2010-01-09",
+                               "2010-01-01", "2010-01-02", "2010-01-03"]),
+        WINDOW_LABEL: [0, 1, 1, 1, 0, 0, 0, 0],
+    })
+    out = _days_since_window_start(table)
+    assert np.isnan(out[[0, 4, 5, 6, 7]]).all()
+    assert out[[1, 2, 3]].tolist() == [0.0, 2.0, 3.0]
+
+
+def test_onset_analysis_splits_the_malicious_rows_by_time_since_the_window_started(insider_experiment):
+    results, markdown = insider_experiment
+    onset = results["insider_only_date_stratified"]["onset"]
+    assert set(onset) == {"days 0-6", "days 7-27", "days 28+"}
+    assert onset["days 0-6"]["n_malicious_rows"] == 12 * 7        # 12 insiders, each one first week
+    assert onset["days 28+"]["n_malicious_rows"] == 0             # no synthetic window is that long
+    assert onset["days 0-6"]["models"]["single_feature_http"]["auroc"]["mean"] > 0.8   # a real signal shows from day 0
+    assert "Detection by time since the window started" in markdown
+
+
 def test_insider_only_check_reports_when_it_cannot_be_computed():
     # every insider shares one window: no week has insiders on both sides of it
     table, scenarios = _synthetic_day_table(window_start=21)
