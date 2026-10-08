@@ -257,6 +257,16 @@ Ablation (remove input columns and rerun, e.g. the cumulative device-use counter
 
 It writes `results/supervised/supervised_all_days_dev_<tag>.json` and `.md` with the same sections as 3b, plus "Permutation importance by individual feature" (top 15 columns, showing which device/logon feature carries the group-level result). Read the last section (insiders only, date-stratified) first. Dev only: there is deliberately no locked-partition option.
 
+## 3d. The insider detector: from suspicious days to suspicious people (dev users)
+
+Scores every user-day out-of-fold, then reports per PERSON: do insiders rank above benign users (user-level AUROC, with date and per-user-clock controls), how many of the top-ranked users are insiders, and an alert simulation (cutoff = 99th percentile of benign users' day scores): insiders detected, days to first alert, benign users alerted. It also writes a ranked user list (CSV) with each user's most suspicious days.
+
+```
+!python scripts/supervised/detect_insiders.py --models gradient_boosting gru --tag dev
+```
+
+Quick pass (gradient boosting only): `--models gradient_boosting --n-repeats 1 --tag quick`. Outputs: `results/supervised/detector_dev_<tag>.md/.json` and `detector_users_<tag>_<model>_<training>.csv`. Dev only: there is no locked-partition option.
+
 ## 4. When Colab disconnects
 
 Disconnects happen (idle timeout, browser closed, usage limits). What survives and what does not:
