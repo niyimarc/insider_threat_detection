@@ -51,6 +51,33 @@ def test_date_matched_scoring_runs_and_keeps_the_signal():
     assert scores[malicious].mean() > scores[~malicious].mean()
 
 
+def test_align_calendar_origin_counts_days_from_the_reference_tables_first_day():
+    from src.supervised.detector import align_calendar_origin
+    reference, _ = _table(n_days=10)
+    later = reference.copy()
+    later["day"] = later["day"] + pd.Timedelta(days=30)
+    later = add_calendar_controls(later)                       # counts from its OWN first day (0 ...)
+    assert later["calendar_day_index"].min() == 0
+    aligned = align_calendar_origin(later, reference)
+    assert aligned["calendar_day_index"].min() == 30
+    assert later["calendar_day_index"].min() == 0              # the input is not modified
+
+
+@pytest.mark.parametrize("model_name", ["logistic", "gru"])
+def test_fit_and_score_scores_users_the_model_never_saw(model_name):
+    from src.supervised.detector import align_calendar_origin, fit_and_score
+    train, _ = _table(seed=0)
+    other, other_scenarios = _table(seed=5)
+    other["user"] = other["user"].str.replace("U", "V")        # different people
+    other_scenarios = {u.replace("U", "V"): s for u, s in other_scenarios.items()}
+    assert not set(train["user"]) & set(other["user"])
+    other = align_calendar_origin(other, train)
+    scores = fit_and_score(train, other, model_name, ["x1", "x2"], seeds=(0, 1))
+    assert scores.shape == (len(other),) and np.isfinite(scores).all()
+    by_user = user_scores(other["user"], scores)
+    assert user_level_auroc({"m": by_user}, set(other_scenarios), n_boot=20)["m"]["auroc"] > 0.9
+
+
 def test_scores_are_deterministic():
     table, scenarios = _table()
     a = out_of_fold_day_scores(table, scenarios, "logistic", ["x1", "x2"], n_folds=4, n_repeats=1, seed=3)

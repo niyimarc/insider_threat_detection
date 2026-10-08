@@ -142,6 +142,15 @@ def test_alert_cutoff_comes_from_benign_users_only_and_the_summary_counts_are_ri
     assert s["benign_users_alerted"] == 2                             # each benign user has a day at the 90th percentile
 
 
+def test_a_fixed_threshold_is_used_as_given_and_needs_no_benign_users():
+    frame, windows = _alert_data()
+    only_insiders = frame[frame["user"].isin(["I1", "I2"])]
+    a = alert_analysis(only_insiders["user"], only_insiders["day"], only_insiders["score"], windows, threshold=50.0)
+    assert a["threshold"] == 50.0
+    assert a["summary"]["insiders_detected"] == 1 and a["summary"]["n_benign"] == 0
+    assert a["per_user"]["I1"]["days_to_first_alert"] == 2
+
+
 def test_alert_analysis_needs_benign_users():
     frame, windows = _alert_data()
     windows = {**windows, "B1": (pd.Timestamp("2010-01-01"), pd.Timestamp("2010-01-02")),

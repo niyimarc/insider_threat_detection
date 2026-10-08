@@ -269,6 +269,16 @@ The report also has a "Matched-period check": each insider's score over their ow
 
 Quick pass (gradient boosting only): `--models gradient_boosting --n-repeats 1 --tag quick`. Outputs: `results/supervised/detector_dev_<tag>.md/.json` and `detector_users_<tag>_<model>_<training>.csv`. Dev only: there is no locked-partition option.
 
+## 3e. THE FINAL, ONCE-ONLY test on the locked users
+
+Method fixed in `FROZEN_SUPERVISED_METHOD.md` (do not edit it after this run). Trains the two frozen models (gradient boosting, GRU; all signals; date-matched) on the 50 development users only and scores the locked users. Run it ONCE; whatever comes out is what gets reported.
+
+```
+!python scripts/supervised/final_detector_locked.py --confirm-final
+```
+
+Outputs in `results/supervised/`: `final_detector_locked_locked.md/.json`, `final_detector_users_locked_<model>.csv` and `LOCKED_RUN_RECORD.json` (a second run is refused without `--allow-second-run`). Copy these to Drive or commit them: the Colab folder disappears with the session.
+
 ## 4. When Colab disconnects
 
 Disconnects happen (idle timeout, browser closed, usage limits). What survives and what does not:
