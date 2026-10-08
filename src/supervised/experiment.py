@@ -549,7 +549,7 @@ def run_experiment(
                 sub["n_malicious_rows"] = int(in_bin.sum())
                 onset[bin_name] = sub
                 markdown.append(format_stratified_markdown(
-                    f"Malicious days {bin_name} after the window start ({int(in_bin.sum())} malicious rows)",
+                    f"Malicious rows {bin_name} after the window start ({int(in_bin.sum())} malicious rows)",
                     "Window labelling.", sub, display_names))
             evals["onset"] = onset
             lines = []
