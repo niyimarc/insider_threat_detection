@@ -239,7 +239,13 @@ Sequence model (a one-layer GRU over each user's previous 14 active days, fixed 
 !python scripts/supervised/cross_validate_all_days.py --models gru --n-repeats 1 --tag gru
 ```
 
-It skips the permutation-importance sections (a window input has no single column per feature).
+Head-to-head against gradient boosting (both models in one run, every "minus ..." column paired against gradient boosting with all signals):
+
+```
+!python scripts/supervised/cross_validate_all_days.py --models gradient_boosting gru --reference "gradient_boosting[all]" --tag h2h
+```
+
+(3 repeats by default; expect one to two hours on CPU. Add `--n-repeats 1` for a faster pass.) The GRU run skips the permutation-importance sections (a window input has no single column per feature).
 
 Ablation (remove input columns and rerun, e.g. the cumulative device-use counter):
 

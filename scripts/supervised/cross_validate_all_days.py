@@ -70,6 +70,9 @@ def main():
     parser.add_argument("--strata-days", type=int, default=7)
     parser.add_argument("--out-dir", default="results/supervised")
     parser.add_argument("--tag", default="all")
+    parser.add_argument("--reference", default="single_feature_http",
+                        help="the row every 'minus ...' column is paired against, e.g. "
+                             "'gradient_boosting[all]' to compare models head to head (default: the http heuristic)")
     parser.add_argument("--exclude-features", nargs="*", default=[],
                         help="input columns to remove (an ablation), e.g. dv_prior_use_days")
     args = parser.parse_args()
@@ -105,7 +108,7 @@ def main():
         table, scenario_by_user,
         model_names=tuple(args.models), config_names=tuple(args.configs),
         n_folds=args.n_folds, n_repeats=args.n_repeats, n_boot=args.n_boot, seed=args.seed,
-        strata_days=args.strata_days, feature_set=feature_set,
+        strata_days=args.strata_days, feature_set=feature_set, reference=args.reference,
     )
     results["partition"] = "dev"
     results["table"] = "all_days"
