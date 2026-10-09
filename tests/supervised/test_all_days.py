@@ -65,6 +65,21 @@ def test_the_table_has_a_row_for_every_active_day_not_only_file_days():
     assert table[DAY_KEY].equals(table[DAY_KEY].sort_values(DAY_KEY).reset_index(drop=True))
 
 
+def test_email_columns_are_added_without_changing_rows_or_the_existing_columns():
+    from src.common.preprocessing.email_features import EMAIL_RAW_COLUMNS
+    from src.supervised.email_day_signals import EMAIL_DAY_COLUMNS
+    logon, device, files, http, windows, key_days = _raw_frames()
+    email = pd.DataFrame([{**{c: 0.0 for c in EMAIL_RAW_COLUMNS}, "user": u, "day": pd.Timestamp(d), "em_n_sent": 4.0}
+                          for u, d in (("U1", "2010-01-05"), ("U3", "2010-01-04"))])
+    plain = build_all_user_days(logon, device, files, http, windows, key_days, ("U1", "U2"))
+    with_email = build_all_user_days(logon, device, files, http, windows, key_days, ("U1", "U2"), email_user_day=email)
+    assert with_email[DAY_KEY].equals(plain[DAY_KEY])
+    assert set(EMAIL_DAY_COLUMNS) <= set(with_email.columns) and not set(EMAIL_DAY_COLUMNS) & set(plain.columns)
+    pd.testing.assert_frame_equal(with_email[plain.columns], plain)            # every old column unchanged
+    assert with_email.set_index(DAY_KEY).loc[("U1", _ts("2010-01-05")), "em_n_sent"] == 4.0
+    assert (with_email["user"] != "U3").all()
+
+
 def test_days_without_a_file_copy_get_zero_counts_and_missing_file_summaries():
     table = _build().set_index(["user", "day"])
     no_file = table.loc[("U1", _ts("2010-01-04"))]

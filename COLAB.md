@@ -279,6 +279,17 @@ Method fixed in `FROZEN_SUPERVISED_METHOD.md` (do not edit it after this run). T
 
 Outputs in `results/supervised/`: `final_detector_locked_locked.md/.json`, `final_detector_users_locked_<model>.csv` and `LOCKED_RUN_RECORD.json` (a second run is refused without `--allow-second-run`). Copy these to Drive or commit them: the Colab folder disappears with the session.
 
+## 3f. Email signal (v2 = v1 + email), all 99 users, cross-validated
+
+Not a clean test (the locked users are spent); the frozen v1 locked result stays the clean evidence. Two steps; the first needs the raw `email.csv` on Drive and is run once:
+
+```
+!python scripts/common/precompute_email_daily.py
+!python scripts/supervised/evaluate_email_signal.py
+```
+
+Quick pass: `--models gradient_boosting --n-repeats 1 --tag quick`. Output: `results/supervised/email_signal_cv_<tag>.md/.json` (v1 vs v2 vs email-only, paired differences, alert simulation by scenario, calendar and clock controls). Copy to Drive or commit before the session ends.
+
 ## 4. When Colab disconnects
 
 Disconnects happen (idle timeout, browser closed, usage limits). What survives and what does not:

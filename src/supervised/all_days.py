@@ -59,8 +59,11 @@ def window_labels_for_days(days, windows):
     return labels
 
 
-def build_all_user_days(logon_df, device_df, file_events_df, http_user_day, windows, answer_key_days, users):
+def build_all_user_days(logon_df, device_df, file_events_df, http_user_day, windows, answer_key_days, users,
+                        email_user_day=None):
     """
+    email_user_day (optional): output of build_email_user_day. If given, the email columns of
+    src/supervised/email_day_signals.py are added; rows and every other column are unchanged.
     logon_df, device_df: the raw logon/device logs (user, pc, date, activity).
     file_events_df:      processed file events (the registered feature columns, user, date,
                          session_start, is_malicious).
@@ -101,6 +104,9 @@ def build_all_user_days(logon_df, device_df, file_events_df, http_user_day, wind
         table[column] = table[column].fillna(0.0)
 
     table = add_causal_baselines(table)
+    if email_user_day is not None:
+        from src.supervised.email_day_signals import add_email_features
+        table = add_email_features(table, email_user_day[email_user_day["user"].isin(users)])
 
     table[WINDOW_LABEL] = window_labels_for_days(table, windows)
     positives = answer_key_days[DAY_KEY + [ANSWER_KEY_COLUMN]]

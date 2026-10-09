@@ -100,6 +100,12 @@ def all_days_feature_columns(groups):
     return columns
 
 
+def all_days_plus_email_columns():
+    """The frozen v1 input columns (all four groups) followed by the email columns. v2 of the detector."""
+    from src.supervised.email_day_signals import EMAIL_DAY_COLUMNS
+    return all_days_feature_columns(("file", "device", "logon", "http")) + list(EMAIL_DAY_COLUMNS)
+
+
 def all_days_group_of_column(column):
     for group, columns in ALL_DAYS_COLUMNS_BY_GROUP.items():
         if column in columns:
