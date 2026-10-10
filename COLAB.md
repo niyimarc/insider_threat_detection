@@ -300,6 +300,16 @@ Needs `email_user_day.parquet` (section 3f) and the raw `data/raw/r4.2/LDAP/` fo
 
 Quick pass: `--models gradient_boosting --n-repeats 1 --tag quick` (no ensemble then). Output: `results/supervised/v3_detector_cv_<tag>.md/.json` (v1, v1+peer, v2, v3 for gradient boosting, GRU and their ensemble; alert rules `single` and `persist_2of3` at the 99th and 95th percentile, with cutoffs cross-fitted across users). Copy to Drive or commit before the session ends.
 
+## 3h. Clean extra test: frozen detector's false alarms on ~165 benign users never scored
+
+The frozen v1 detector (trained on the 50 development users, saved frozen alert cutoff) scores benign users that belonged to the unsupervised phase's train/validation sets and were never used by the supervised work. The locked users' events are not read or scored again; the saved locked-run CSVs and `final_detector_locked_locked.json` must be in `results/supervised/` (copy them from Drive or clone them from GitHub).
+
+```
+!python scripts/supervised/extra_benign_false_alarms.py
+```
+
+Output: `results/supervised/extra_benign_false_alarms_extra_benign.md/.json` and `extra_benign_users_extra_benign_<model>.csv` (use `git add -f` for the CSVs). Copy to Drive or commit before the session ends.
+
 ## 4. When Colab disconnects
 
 Disconnects happen (idle timeout, browser closed, usage limits). What survives and what does not:

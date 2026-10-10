@@ -51,6 +51,17 @@ def apply_alert_rule(users, days, raw_flags, rule):
     return pd.Series(alert, index=frame.index).sort_index().to_numpy()
 
 
+def wilson_interval(successes, n, z=1.96):
+    """95% Wilson score interval (low, high) for a proportion; (nan, nan) when n is 0."""
+    if n <= 0:
+        return float("nan"), float("nan")
+    phat = successes / n
+    denominator = 1.0 + z * z / n
+    centre = (phat + z * z / (2 * n)) / denominator
+    half = z * np.sqrt(phat * (1 - phat) / n + z * z / (4 * n * n)) / denominator
+    return float(max(0.0, centre - half)), float(min(1.0, centre + half))
+
+
 def assign_user_folds(users, insider_users, n_folds=5, seed=0):
     """{user: fold}: insiders and benign users are each dealt round-robin to the folds after a shuffle."""
     rng = np.random.default_rng(seed)

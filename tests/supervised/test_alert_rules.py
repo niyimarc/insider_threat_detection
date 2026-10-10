@@ -89,6 +89,15 @@ def test_persistence_cannot_raise_the_number_of_alert_days_and_lowers_false_alar
     assert p["insiders_detected"] >= 4                                        # still catches the planted shift
 
 
+def test_wilson_interval_matches_known_values_and_stays_inside_zero_and_one():
+    from src.supervised.alert_rules import wilson_interval
+    low, high = wilson_interval(10, 15)
+    assert low == pytest.approx(0.417, abs=2e-3) and high == pytest.approx(0.848, abs=2e-3)
+    assert wilson_interval(0, 20)[0] == 0.0 and wilson_interval(20, 20)[1] == 1.0
+    assert 0.0 < wilson_interval(0, 20)[1] < 0.2
+    assert all(np.isnan(v) for v in wilson_interval(0, 0))
+
+
 def test_alert_analysis_accepts_explicit_flags_and_keeps_default_behaviour():
     frame, windows = _toy()
     default = alert_analysis(frame["user"], frame["day"], frame["score"], windows)
