@@ -1,0 +1,1153 @@
+{
+  "commit": "ce8e57603e57c32588d84edab9acf3d6dd1edaeb",
+  "n_users": 99,
+  "n_insiders": 69,
+  "n_benign": 30,
+  "n_email_columns": 17,
+  "n_v1_columns": 40,
+  "n_v2_columns": 57,
+  "day_level": {
+    "all insiders": {
+      "gradient_boosting": {
+        "coverage": {
+          "n_strata": 69,
+          "n_strata_used": 46,
+          "n_positive": 1357,
+          "n_positive_used": 1357
+        },
+        "reference": "gradient_boosting/v1",
+        "models": {
+          "gradient_boosting/v1": {
+            "n_runs": 1,
+            "auroc": {
+              "mean": 0.8523279665065048,
+              "std_over_runs": 0.0,
+              "ci_low": 0.7881400310030331,
+              "ci_high": 0.9094830903280864
+            }
+          },
+          "gradient_boosting/v2": {
+            "n_runs": 1,
+            "auroc": {
+              "mean": 0.9309079584515815,
+              "std_over_runs": 0.0,
+              "ci_low": 0.8972920025917248,
+              "ci_high": 0.9587731118665882
+            },
+            "auroc_minus_reference": {
+              "mean": 0.07652476791486201,
+              "ci_low": 0.042535365966549436,
+              "ci_high": 0.11899413159430701,
+              "ci_excludes_zero": true
+            }
+          },
+          "gradient_boosting/email_only": {
+            "n_runs": 1,
+            "auroc": {
+              "mean": 0.7655595830172244,
+              "std_over_runs": 0.0,
+              "ci_low": 0.7018433666114202,
+              "ci_high": 0.8183582562231263
+            },
+            "auroc_minus_reference": {
+              "mean": -0.09162591481916707,
+              "ci_low": -0.171833698078168,
+              "ci_high": -0.005824222117377463,
+              "ci_excludes_zero": true
+            }
+          },
+          "gradient_boosting/calendar_only": {
+            "n_runs": 1,
+            "auroc": {
+              "mean": 0.5221112328715801,
+              "std_over_runs": 0.0,
+              "ci_low": 0.484598607282647,
+              "ci_high": 0.5577234752347928
+            },
+            "auroc_minus_reference": {
+              "mean": -0.33427267189345344,
+              "ci_low": -0.4026395619481945,
+              "ci_high": -0.26069661188852694,
+              "ci_excludes_zero": true
+            }
+          },
+          "gradient_boosting/user_clock_only": {
+            "n_runs": 1,
+            "auroc": {
+              "mean": 0.4687099009993725,
+              "std_over_runs": 0.0,
+              "ci_low": 0.3871498534197987,
+              "ci_high": 0.547525883343471
+            },
+            "auroc_minus_reference": {
+              "mean": -0.38790467923964184,
+              "ci_low": -0.48892867531540046,
+              "ci_high": -0.2813709748391236,
+              "ci_excludes_zero": true
+            }
+          }
+        }
+      },
+      "gru": {
+        "coverage": {
+          "n_strata": 69,
+          "n_strata_used": 46,
+          "n_positive": 1357,
+          "n_positive_used": 1357
+        },
+        "reference": "gru/v1",
+        "models": {
+          "gru/v1": {
+            "n_runs": 1,
+            "auroc": {
+              "mean": 0.9086515496361235,
+              "std_over_runs": 0.0,
+              "ci_low": 0.8593463756430807,
+              "ci_high": 0.9484191568149746
+            }
+          },
+          "gru/v2": {
+            "n_runs": 1,
+            "auroc": {
+              "mean": 0.9143977071567058,
+              "std_over_runs": 0.0,
+              "ci_low": 0.8649994953930091,
+              "ci_high": 0.9514113690824263
+            },
+            "auroc_minus_reference": {
+              "mean": 0.005583057355557905,
+              "ci_low": -0.015203799095411988,
+              "ci_high": 0.028630359843553773,
+              "ci_excludes_zero": false
+            }
+          },
+          "gru/email_only": {
+            "n_runs": 1,
+            "auroc": {
+              "mean": 0.8111916603444884,
+              "std_over_runs": 0.0,
+              "ci_low": 0.7564653812114633,
+              "ci_high": 0.8533951588077836
+            },
+            "auroc_minus_reference": {
+              "mean": -0.10109374183931684,
+              "ci_low": -0.17193949422005747,
+              "ci_high": -0.02726481779767598,
+              "ci_excludes_zero": true
+            }
+          },
+          "gru/calendar_only": {
+            "n_runs": 1,
+            "auroc": {
+              "mean": 0.5227668661665121,
+              "std_over_runs": 0.0,
+              "ci_low": 0.46045765609425776,
+              "ci_high": 0.5873134913767807
+            },
+            "auroc_minus_reference": {
+              "mean": -0.38794746731028285,
+              "ci_low": -0.46787647238755853,
+              "ci_high": -0.30516957381314097,
+              "ci_excludes_zero": true
+            }
+          },
+          "gru/user_clock_only": {
+            "n_runs": 1,
+            "auroc": {
+              "mean": 0.5549537778527073,
+              "std_over_runs": 0.0,
+              "ci_low": 0.44104709193287284,
+              "ci_high": 0.6622475746937666
+            },
+            "auroc_minus_reference": {
+              "mean": -0.3558939386372964,
+              "ci_low": -0.46943257025133156,
+              "ci_high": -0.24793696738259552,
+              "ci_excludes_zero": true
+            }
+          }
+        }
+      }
+    },
+    "scenario 1 insiders only": {
+      "gradient_boosting": {
+        "coverage": {
+          "n_strata": 64,
+          "n_strata_used": 28,
+          "n_positive": 149,
+          "n_positive_used": 149
+        },
+        "reference": "gradient_boosting/v1",
+        "models": {
+          "gradient_boosting/v1": {
+            "n_runs": 1,
+            "auroc": {
+              "mean": 0.9886390532544379,
+              "std_over_runs": 0.0,
+              "ci_low": 0.9768376151758451,
+              "ci_high": 0.9956813397330638
+            }
+          },
+          "gradient_boosting/v2": {
+            "n_runs": 1,
+            "auroc": {
+              "mean": 0.9853648915187376,
+              "std_over_runs": 0.0,
+              "ci_low": 0.9695777424365752,
+              "ci_high": 0.9952608037324566
+            },
+            "auroc_minus_reference": {
+              "mean": -0.0029638823992453028,
+              "ci_low": -0.009501016586555807,
+              "ci_high": 0.0013672198880324946,
+              "ci_excludes_zero": false
+            }
+          },
+          "gradient_boosting/email_only": {
+            "n_runs": 1,
+            "auroc": {
+              "mean": 0.47668639053254436,
+              "std_over_runs": 0.0,
+              "ci_low": 0.3892796504820541,
+              "ci_high": 0.5747699428102564
+            },
+            "auroc_minus_reference": {
+              "mean": -0.5117718186251288,
+              "ci_low": -0.5973522611926615,
+              "ci_high": -0.41576482064700454,
+              "ci_excludes_zero": true
+            }
+          },
+          "gradient_boosting/calendar_only": {
+            "n_runs": 1,
+            "auroc": {
+              "mean": 0.45187376725838263,
+              "std_over_runs": 0.0,
+              "ci_low": 0.41216637009425616,
+              "ci_high": 0.5016165869820738
+            },
+            "auroc_minus_reference": {
+              "mean": -0.5351107417364539,
+              "ci_low": -0.5801069194999904,
+              "ci_high": -0.4811164203762595,
+              "ci_excludes_zero": true
+            }
+          },
+          "gradient_boosting/user_clock_only": {
+            "n_runs": 1,
+            "auroc": {
+              "mean": 0.30690335305719924,
+              "std_over_runs": 0.0,
+              "ci_low": 0.2453184459471905,
+              "ci_high": 0.37790416945086086
+            },
+            "auroc_minus_reference": {
+              "mean": -0.6763130709147491,
+              "ci_low": -0.7442980387504035,
+              "ci_high": -0.6060048004579022,
+              "ci_excludes_zero": true
+            }
+          }
+        }
+      },
+      "gru": {
+        "coverage": {
+          "n_strata": 64,
+          "n_strata_used": 28,
+          "n_positive": 149,
+          "n_positive_used": 149
+        },
+        "reference": "gru/v1",
+        "models": {
+          "gru/v1": {
+            "n_runs": 1,
+            "auroc": {
+              "mean": 0.9884023668639054,
+              "std_over_runs": 0.0,
+              "ci_low": 0.9733705729510955,
+              "ci_high": 0.9972509707431794
+            }
+          },
+          "gru/v2": {
+            "n_runs": 1,
+            "auroc": {
+              "mean": 0.9864299802761342,
+              "std_over_runs": 0.0,
+              "ci_low": 0.9669689857715011,
+              "ci_high": 0.9958784336861912
+            },
+            "auroc_minus_reference": {
+              "mean": -0.002872262266418922,
+              "ci_low": -0.008048459996055407,
+              "ci_high": 0.0013219911604460356,
+              "ci_excludes_zero": false
+            }
+          },
+          "gru/email_only": {
+            "n_runs": 1,
+            "auroc": {
+              "mean": 0.5626824457593689,
+              "std_over_runs": 0.0,
+              "ci_low": 0.4450016819896951,
+              "ci_high": 0.6709335910517578
+            },
+            "auroc_minus_reference": {
+              "mean": -0.42841914047384694,
+              "ci_low": -0.5439625603992471,
+              "ci_high": -0.31924608014849126,
+              "ci_excludes_zero": true
+            }
+          },
+          "gru/calendar_only": {
+            "n_runs": 1,
+            "auroc": {
+              "mean": 0.3601577909270217,
+              "std_over_runs": 0.0,
+              "ci_low": 0.24548960386992866,
+              "ci_high": 0.48722176460396904
+            },
+            "auroc_minus_reference": {
+              "mean": -0.623573343055125,
+              "ci_low": -0.7429545723628587,
+              "ci_high": -0.5043125839080488,
+              "ci_excludes_zero": true
+            }
+          },
+          "gru/user_clock_only": {
+            "n_runs": 1,
+            "auroc": {
+              "mean": 0.5138067061143984,
+              "std_over_runs": 0.0,
+              "ci_low": 0.3846005501170557,
+              "ci_high": 0.6138789992208723
+            },
+            "auroc_minus_reference": {
+              "mean": -0.47674761164047047,
+              "ci_low": -0.6013798119507725,
+              "ci_high": -0.37659472814457673,
+              "ci_excludes_zero": true
+            }
+          }
+        }
+      }
+    },
+    "scenario 2 insiders only": {
+      "gradient_boosting": {
+        "coverage": {
+          "n_strata": 68,
+          "n_strata_used": 41,
+          "n_positive": 1188,
+          "n_positive_used": 1123
+        },
+        "reference": "gradient_boosting/v1",
+        "models": {
+          "gradient_boosting/v1": {
+            "n_runs": 1,
+            "auroc": {
+              "mean": 0.6341149151870416,
+              "std_over_runs": 0.0,
+              "ci_low": 0.5339908233920007,
+              "ci_high": 0.7313668465562958
+            }
+          },
+          "gradient_boosting/v2": {
+            "n_runs": 1,
+            "auroc": {
+              "mean": 0.8393084699685668,
+              "std_over_runs": 0.0,
+              "ci_low": 0.7767119549501502,
+              "ci_high": 0.889006352470399
+            },
+            "auroc_minus_reference": {
+              "mean": 0.20554781353346557,
+              "ci_low": 0.13319059183725449,
+              "ci_high": 0.2838521716173322,
+              "ci_excludes_zero": true
+            }
+          },
+          "gradient_boosting/email_only": {
+            "n_runs": 1,
+            "auroc": {
+              "mean": 0.7992665590575708,
+              "std_over_runs": 0.0,
+              "ci_low": 0.7364788459258375,
+              "ci_high": 0.856025054089297
+            },
+            "auroc_minus_reference": {
+              "mean": 0.16523337927167708,
+              "ci_low": 0.06615297673031391,
+              "ci_high": 0.26956788373421997,
+              "ci_excludes_zero": true
+            }
+          },
+          "gradient_boosting/calendar_only": {
+            "n_runs": 1,
+            "auroc": {
+              "mean": 0.5413941041542775,
+              "std_over_runs": 0.0,
+              "ci_low": 0.49497258064308847,
+              "ci_high": 0.585619589541448
+            },
+            "auroc_minus_reference": {
+              "mean": -0.09175958729850346,
+              "ci_low": -0.2033013688380684,
+              "ci_high": 0.02858136294472829,
+              "ci_excludes_zero": false
+            }
+          },
+          "gradient_boosting/user_clock_only": {
+            "n_runs": 1,
+            "auroc": {
+              "mean": 0.5015787387081245,
+              "std_over_runs": 0.0,
+              "ci_low": 0.4112007496085879,
+              "ci_high": 0.5961961660083633
+            },
+            "auroc_minus_reference": {
+              "mean": -0.1314658158755825,
+              "ci_low": -0.2924280203599637,
+              "ci_high": 0.03137344257417079,
+              "ci_excludes_zero": false
+            }
+          }
+        }
+      },
+      "gru": {
+        "coverage": {
+          "n_strata": 68,
+          "n_strata_used": 41,
+          "n_positive": 1188,
+          "n_positive_used": 1123
+        },
+        "reference": "gru/v1",
+        "models": {
+          "gru/v1": {
+            "n_runs": 1,
+            "auroc": {
+              "mean": 0.8054540820660946,
+              "std_over_runs": 0.0,
+              "ci_low": 0.7181472720169133,
+              "ci_high": 0.8818256763777762
+            }
+          },
+          "gru/v2": {
+            "n_runs": 1,
+            "auroc": {
+              "mean": 0.8238892192676918,
+              "std_over_runs": 0.0,
+              "ci_low": 0.7313747244084338,
+              "ci_high": 0.89793854836931
+            },
+            "auroc_minus_reference": {
+              "mean": 0.02053032642217351,
+              "ci_low": -0.03186122789251955,
+              "ci_high": 0.06957034042927884,
+              "ci_excludes_zero": false
+            }
+          },
+          "gru/email_only": {
+            "n_runs": 1,
+            "auroc": {
+              "mean": 0.8521082887321949,
+              "std_over_runs": 0.0,
+              "ci_low": 0.7925137536280029,
+              "ci_high": 0.8974664292385792
+            },
+            "auroc_minus_reference": {
+              "mean": 0.04795065438577299,
+              "ci_low": -0.059410061957704506,
+              "ci_high": 0.16064458484356559,
+              "ci_excludes_zero": false
+            }
+          },
+          "gru/calendar_only": {
+            "n_runs": 1,
+            "auroc": {
+              "mean": 0.5571390139608643,
+              "std_over_runs": 0.0,
+              "ci_low": 0.48425372813545464,
+              "ci_high": 0.635961676867806
+            },
+            "auroc_minus_reference": {
+              "mean": -0.24340678492981022,
+              "ci_low": -0.3524914231710441,
+              "ci_high": -0.13839889594752308,
+              "ci_excludes_zero": true
+            }
+          },
+          "gru/user_clock_only": {
+            "n_runs": 1,
+            "auroc": {
+              "mean": 0.5806926627587574,
+              "std_over_runs": 0.0,
+              "ci_low": 0.4463805034027162,
+              "ci_high": 0.7140761497003888
+            },
+            "auroc_minus_reference": {
+              "mean": -0.22150781446404452,
+              "ci_low": -0.3564323517189632,
+              "ci_high": -0.08581920230561203,
+              "ci_excludes_zero": true
+            }
+          }
+        }
+      }
+    },
+    "scenario 3 insiders only": {
+      "gradient_boosting": {
+        "coverage": {
+          "n_strata": 69,
+          "n_strata_used": 10,
+          "n_positive": 20,
+          "n_positive_used": 20
+        },
+        "reference": "gradient_boosting/v1",
+        "models": {
+          "gradient_boosting/v1": {
+            "n_runs": 1,
+            "auroc": {
+              "mean": 0.9790076335877863,
+              "std_over_runs": 0.0,
+              "ci_low": 0.9219258031404316,
+              "ci_high": 1.0
+            }
+          },
+          "gradient_boosting/v2": {
+            "n_runs": 1,
+            "auroc": {
+              "mean": 0.9751908396946565,
+              "std_over_runs": 0.0,
+              "ci_low": 0.9159869138495093,
+              "ci_high": 1.0
+            },
+            "auroc_minus_reference": {
+              "mean": -0.007619279243629954,
+              "ci_low": -0.05639097744360899,
+              "ci_high": 0.025735294117646967,
+              "ci_excludes_zero": false
+            }
+          },
+          "gradient_boosting/email_only": {
+            "n_runs": 1,
+            "auroc": {
+              "mean": 0.8263358778625954,
+              "std_over_runs": 0.0,
+              "ci_low": 0.699990671641791,
+              "ci_high": 0.9324324324324325
+            },
+            "auroc_minus_reference": {
+              "mean": -0.15657050721186266,
+              "ci_low": -0.2890009578266044,
+              "ci_high": -0.03803665256952459,
+              "ci_excludes_zero": true
+            }
+          },
+          "gradient_boosting/calendar_only": {
+            "n_runs": 1,
+            "auroc": {
+              "mean": 0.5324427480916031,
+              "std_over_runs": 0.0,
+              "ci_low": 0.3866758909474737,
+              "ci_high": 0.6840298827566486
+            },
+            "auroc_minus_reference": {
+              "mean": -0.44184646580848713,
+              "ci_low": -0.594546683046683,
+              "ci_high": -0.30259474700264183,
+              "ci_excludes_zero": true
+            }
+          },
+          "gradient_boosting/user_clock_only": {
+            "n_runs": 1,
+            "auroc": {
+              "mean": 0.5095419847328244,
+              "std_over_runs": 0.0,
+              "ci_low": 0.255679698100407,
+              "ci_high": 0.7184713365306068
+            },
+            "auroc_minus_reference": {
+              "mean": -0.4743455062414306,
+              "ci_low": -0.7250866104868914,
+              "ci_high": -0.268479522251053,
+              "ci_excludes_zero": true
+            }
+          }
+        }
+      },
+      "gru": {
+        "coverage": {
+          "n_strata": 69,
+          "n_strata_used": 10,
+          "n_positive": 20,
+          "n_positive_used": 20
+        },
+        "reference": "gru/v1",
+        "models": {
+          "gru/v1": {
+            "n_runs": 1,
+            "auroc": {
+              "mean": 0.9293893129770993,
+              "std_over_runs": 0.0,
+              "ci_low": 0.7912493967181468,
+              "ci_high": 1.0
+            }
+          },
+          "gru/v2": {
+            "n_runs": 1,
+            "auroc": {
+              "mean": 0.898854961832061,
+              "std_over_runs": 0.0,
+              "ci_low": 0.7327730475631239,
+              "ci_high": 1.0
+            },
+            "auroc_minus_reference": {
+              "mean": -0.02908374546155126,
+              "ci_low": -0.10585227272727278,
+              "ci_high": 0.011494252873563204,
+              "ci_excludes_zero": false
+            }
+          },
+          "gru/email_only": {
+            "n_runs": 1,
+            "auroc": {
+              "mean": 0.6736641221374046,
+              "std_over_runs": 0.0,
+              "ci_low": 0.49423021235521236,
+              "ci_high": 0.8963667471819645
+            },
+            "auroc_minus_reference": {
+              "mean": -0.2350103072172036,
+              "ci_low": -0.4373574144486692,
+              "ci_high": -0.060191998273290984,
+              "ci_excludes_zero": true
+            }
+          },
+          "gru/calendar_only": {
+            "n_runs": 1,
+            "auroc": {
+              "mean": 0.5458015267175572,
+              "std_over_runs": 0.0,
+              "ci_low": 0.3331989247311828,
+              "ci_high": 0.7089594801657114
+            },
+            "auroc_minus_reference": {
+              "mean": -0.39681907582411236,
+              "ci_low": -0.625,
+              "ci_high": -0.17405303030303054,
+              "ci_excludes_zero": true
+            }
+          },
+          "gru/user_clock_only": {
+            "n_runs": 1,
+            "auroc": {
+              "mean": 0.4026717557251908,
+              "std_over_runs": 0.0,
+              "ci_low": 0.18380809384822633,
+              "ci_high": 0.6531264913213617
+            },
+            "auroc_minus_reference": {
+              "mean": -0.5234874770563772,
+              "ci_low": -0.755726291837933,
+              "ci_high": -0.3013687677673301,
+              "ci_excludes_zero": true
+            }
+          }
+        }
+      }
+    }
+  },
+  "user_level": {
+    "top_k_mean": {
+      "gradient_boosting": {
+        "gradient_boosting/v1": {
+          "auroc": 0.8927536231884058,
+          "ci_low": 0.8227053140096618,
+          "ci_high": 0.9473429951690822,
+          "is_reference": true
+        },
+        "gradient_boosting/v2": {
+          "auroc": 0.8869565217391304,
+          "ci_low": 0.8082125603864734,
+          "ci_high": 0.9478381642512077,
+          "auroc_minus_reference": {
+            "mean": -0.006112560386473431,
+            "ci_low": -0.03768115942028982,
+            "ci_high": 0.023200483091787332,
+            "ci_excludes_zero": false
+          }
+        },
+        "gradient_boosting/email_only": {
+          "auroc": 0.7821256038647343,
+          "ci_low": 0.6835507246376812,
+          "ci_high": 0.866207729468599,
+          "auroc_minus_reference": {
+            "mean": -0.11211690821256039,
+            "ci_low": -0.21111111111111114,
+            "ci_high": -0.0009541062801932314,
+            "ci_excludes_zero": true
+          }
+        },
+        "gradient_boosting/calendar_only": {
+          "auroc": 0.11545893719806763,
+          "ci_low": 0.0391304347826087,
+          "ci_high": 0.20439613526570044,
+          "auroc_minus_reference": {
+            "mean": -0.7771772946859903,
+            "ci_low": -0.863780193236715,
+            "ci_high": -0.6734299516908212,
+            "ci_excludes_zero": true
+          }
+        },
+        "gradient_boosting/user_clock_only": {
+          "auroc": 0.2560386473429952,
+          "ci_low": 0.1280072463768116,
+          "ci_high": 0.3855193236714976,
+          "auroc_minus_reference": {
+            "mean": -0.6348531400966183,
+            "ci_low": -0.7734299516908213,
+            "ci_high": -0.49177536231884056,
+            "ci_excludes_zero": true
+          }
+        }
+      },
+      "gru": {
+        "gru/v1": {
+          "auroc": 0.9545893719806763,
+          "ci_low": 0.9014251207729469,
+          "ci_high": 0.991304347826087,
+          "is_reference": true
+        },
+        "gru/v2": {
+          "auroc": 0.9521739130434783,
+          "ci_low": 0.8888647342995168,
+          "ci_high": 0.9932367149758454,
+          "auroc_minus_reference": {
+            "mean": -0.002724637681159418,
+            "ci_low": -0.03189613526570056,
+            "ci_high": 0.030471014492753527,
+            "ci_excludes_zero": false
+          }
+        },
+        "gru/email_only": {
+          "auroc": 0.7579710144927536,
+          "ci_low": 0.6579468599033816,
+          "ci_high": 0.8459057971014493,
+          "auroc_minus_reference": {
+            "mean": -0.19835072463768114,
+            "ci_low": -0.30099033816425125,
+            "ci_high": -0.099987922705314,
+            "ci_excludes_zero": true
+          }
+        },
+        "gru/calendar_only": {
+          "auroc": 0.30579710144927535,
+          "ci_low": 0.18694444444444444,
+          "ci_high": 0.4348309178743961,
+          "auroc_minus_reference": {
+            "mean": -0.6490531400966184,
+            "ci_low": -0.778756038647343,
+            "ci_high": -0.5120772946859904,
+            "ci_excludes_zero": true
+          }
+        },
+        "gru/user_clock_only": {
+          "auroc": 0.5345410628019324,
+          "ci_low": 0.3883997584541063,
+          "ci_high": 0.6777898550724638,
+          "auroc_minus_reference": {
+            "mean": -0.4204550724637681,
+            "ci_low": -0.5760929951690822,
+            "ci_high": -0.265157004830918,
+            "ci_excludes_zero": true
+          }
+        }
+      }
+    },
+    "max": {
+      "gradient_boosting": {
+        "gradient_boosting/v1": {
+          "auroc": 0.957487922705314,
+          "ci_low": 0.9188405797101449,
+          "ci_high": 0.9855072463768116,
+          "is_reference": true
+        },
+        "gradient_boosting/v2": {
+          "auroc": 0.9594202898550724,
+          "ci_low": 0.9130434782608695,
+          "ci_high": 0.9932367149758454,
+          "auroc_minus_reference": {
+            "mean": 0.0009260869565217414,
+            "ci_low": -0.037693236714975924,
+            "ci_high": 0.035772946859903364,
+            "ci_excludes_zero": false
+          }
+        },
+        "gradient_boosting/email_only": {
+          "auroc": 0.8149758454106281,
+          "ci_low": 0.7222222222222222,
+          "ci_high": 0.8884178743961353,
+          "auroc_minus_reference": {
+            "mean": -0.1466623188405797,
+            "ci_low": -0.24204106280193238,
+            "ci_high": -0.057958937198067675,
+            "ci_excludes_zero": true
+          }
+        },
+        "gradient_boosting/calendar_only": {
+          "auroc": 0.39951690821256036,
+          "ci_low": 0.29053743961352657,
+          "ci_high": 0.5109118357487923,
+          "auroc_minus_reference": {
+            "mean": -0.5582381642512078,
+            "ci_low": -0.6655374396135266,
+            "ci_high": -0.43800724637681165,
+            "ci_excludes_zero": true
+          }
+        },
+        "gradient_boosting/user_clock_only": {
+          "auroc": 0.32367149758454106,
+          "ci_low": 0.18885265700483092,
+          "ci_high": 0.4691062801932367,
+          "auroc_minus_reference": {
+            "mean": -0.6321091787439613,
+            "ci_low": -0.7720048309178744,
+            "ci_high": -0.48834541062801934,
+            "ci_excludes_zero": true
+          }
+        }
+      },
+      "gru": {
+        "gru/v1": {
+          "auroc": 0.9743961352657005,
+          "ci_low": 0.9284782608695652,
+          "ci_high": 1.0,
+          "is_reference": true
+        },
+        "gru/v2": {
+          "auroc": 0.972463768115942,
+          "ci_low": 0.9169082125603865,
+          "ci_high": 1.0,
+          "auroc_minus_reference": {
+            "mean": -0.0019961352657004833,
+            "ci_low": -0.0227173913043479,
+            "ci_high": 0.020301932367149705,
+            "ci_excludes_zero": false
+          }
+        },
+        "gru/email_only": {
+          "auroc": 0.7666666666666667,
+          "ci_low": 0.6627898550724638,
+          "ci_high": 0.853719806763285,
+          "auroc_minus_reference": {
+            "mean": -0.20922367149758456,
+            "ci_low": -0.3164371980676328,
+            "ci_high": -0.11833333333333333,
+            "ci_excludes_zero": true
+          }
+        },
+        "gru/calendar_only": {
+          "auroc": 0.3120772946859903,
+          "ci_low": 0.19466183574879228,
+          "ci_high": 0.44012077294685986,
+          "auroc_minus_reference": {
+            "mean": -0.6620753623188406,
+            "ci_low": -0.7913164251207729,
+            "ci_high": -0.5317995169082126,
+            "ci_excludes_zero": true
+          }
+        },
+        "gru/user_clock_only": {
+          "auroc": 0.5398550724637681,
+          "ci_low": 0.3902898550724638,
+          "ci_high": 0.6846135265700483,
+          "auroc_minus_reference": {
+            "mean": -0.4351188405797102,
+            "ci_low": -0.5910688405797101,
+            "ci_high": -0.28039855072463776,
+            "ci_excludes_zero": true
+          }
+        }
+      }
+    }
+  },
+  "matched_period": {
+    "gradient_boosting": {
+      "gradient_boosting/v1": {
+        "auroc": 0.994848311390956,
+        "ci_low": 0.9842062421057649,
+        "ci_high": 1.0,
+        "coverage": 0.8439613526570048,
+        "is_reference": true
+      },
+      "gradient_boosting/v2": {
+        "auroc": 0.9977103606182026,
+        "ci_low": 0.9910782313761152,
+        "ci_high": 1.0,
+        "coverage": 0.8439613526570048,
+        "auroc_minus_reference": {
+          "mean": 0.0028981671292893597,
+          "ci_low": -0.0017185489176987255,
+          "ci_high": 0.01163588076740126,
+          "ci_excludes_zero": false
+        }
+      },
+      "gradient_boosting/email_only": {
+        "auroc": 0.8969662278191185,
+        "ci_low": 0.8307680890008131,
+        "ci_high": 0.9519433031206029,
+        "coverage": 0.8439613526570048,
+        "auroc_minus_reference": {
+          "mean": -0.09916200343672091,
+          "ci_low": -0.16341456966505527,
+          "ci_high": -0.04333491903387829,
+          "ci_excludes_zero": true
+        }
+      },
+      "gradient_boosting/calendar_only": {
+        "auroc": 0.32341156267887805,
+        "ci_low": 0.2364440828832545,
+        "ci_high": 0.4208998484284683,
+        "coverage": 0.8439613526570048,
+        "auroc_minus_reference": {
+          "mean": -0.6722914057059601,
+          "ci_low": -0.7559682694792609,
+          "ci_high": -0.576537682168004,
+          "ci_excludes_zero": true
+        }
+      },
+      "gradient_boosting/user_clock_only": {
+        "auroc": 0.46307956496851743,
+        "ci_low": 0.33881552891524314,
+        "ci_high": 0.5905352695145448,
+        "coverage": 0.8439613526570048,
+        "auroc_minus_reference": {
+          "mean": -0.5302375691987548,
+          "ci_low": -0.6581504018212775,
+          "ci_high": -0.4048759350448798,
+          "ci_excludes_zero": true
+        }
+      }
+    },
+    "gru": {
+      "gru/v1": {
+        "auroc": 0.9971379507727532,
+        "ci_low": 0.989768846249379,
+        "ci_high": 1.0,
+        "coverage": 0.8439613526570048,
+        "is_reference": true
+      },
+      "gru/v2": {
+        "auroc": 0.9931310818546079,
+        "ci_low": 0.9757407121663222,
+        "ci_high": 1.0,
+        "coverage": 0.8439613526570048,
+        "auroc_minus_reference": {
+          "mean": -0.004129893048045346,
+          "ci_low": -0.017562837241886384,
+          "ci_high": 0.002144997943741162,
+          "ci_excludes_zero": false
+        }
+      },
+      "gru/email_only": {
+        "auroc": 0.8809387521465369,
+        "ci_low": 0.8173800305403676,
+        "ci_high": 0.935125006563253,
+        "coverage": 0.8439613526570048,
+        "auroc_minus_reference": {
+          "mean": -0.11703169055973475,
+          "ci_low": -0.17902504269927275,
+          "ci_high": -0.06180944058094149,
+          "ci_excludes_zero": true
+        }
+      },
+      "gru/calendar_only": {
+        "auroc": 0.5274756725815684,
+        "ci_low": 0.3896258267560021,
+        "ci_high": 0.6587529984008529,
+        "coverage": 0.8439613526570048,
+        "auroc_minus_reference": {
+          "mean": -0.4696465073191574,
+          "ci_low": -0.6082806640208777,
+          "ci_high": -0.33922612272350994,
+          "ci_excludes_zero": true
+        }
+      },
+      "gru/user_clock_only": {
+        "auroc": 0.6073268460217516,
+        "ci_low": 0.4760740139837258,
+        "ci_high": 0.7353684382542236,
+        "coverage": 0.8439613526570048,
+        "auroc_minus_reference": {
+          "mean": -0.388676149090064,
+          "ci_low": -0.5232798183897736,
+          "ci_high": -0.26316320815969,
+          "ci_excludes_zero": true
+        }
+      }
+    }
+  },
+  "alerts": {
+    "gradient_boosting/v1": {
+      "threshold": 0.6242815673998865,
+      "by_scenario": {
+        "1": [
+          29,
+          29
+        ],
+        "2": [
+          30,
+          30
+        ],
+        "3": [
+          8,
+          10
+        ]
+      },
+      "quantile": 0.99,
+      "n_insiders": 69,
+      "n_benign": 30,
+      "insiders_detected": 67,
+      "detection_rate": 0.9710144927536232,
+      "median_days_to_first_alert": 0.0,
+      "share_detected_within_7_days": 0.9565217391304348,
+      "insiders_alerted_before_window": 41,
+      "benign_users_alerted": 16,
+      "benign_alert_days_per_user": 3.4
+    },
+    "gradient_boosting/v2": {
+      "threshold": 0.6209658850595074,
+      "by_scenario": {
+        "1": [
+          29,
+          29
+        ],
+        "2": [
+          30,
+          30
+        ],
+        "3": [
+          9,
+          10
+        ]
+      },
+      "quantile": 0.99,
+      "n_insiders": 69,
+      "n_benign": 30,
+      "insiders_detected": 68,
+      "detection_rate": 0.9855072463768116,
+      "median_days_to_first_alert": 0.0,
+      "share_detected_within_7_days": 0.9855072463768116,
+      "insiders_alerted_before_window": 38,
+      "benign_users_alerted": 18,
+      "benign_alert_days_per_user": 3.4
+    },
+    "gradient_boosting/email_only": {
+      "threshold": 0.794101230977177,
+      "by_scenario": {
+        "1": [
+          1,
+          29
+        ],
+        "2": [
+          30,
+          30
+        ],
+        "3": [
+          9,
+          10
+        ]
+      },
+      "quantile": 0.99,
+      "n_insiders": 69,
+      "n_benign": 30,
+      "insiders_detected": 40,
+      "detection_rate": 0.5797101449275363,
+      "median_days_to_first_alert": 5.0,
+      "share_detected_within_7_days": 0.36231884057971014,
+      "insiders_alerted_before_window": 40,
+      "benign_users_alerted": 16,
+      "benign_alert_days_per_user": 3.4
+    },
+    "gru/v1": {
+      "threshold": -0.10992490112781751,
+      "by_scenario": {
+        "1": [
+          28,
+          29
+        ],
+        "2": [
+          30,
+          30
+        ],
+        "3": [
+          9,
+          10
+        ]
+      },
+      "quantile": 0.99,
+      "n_insiders": 69,
+      "n_benign": 30,
+      "insiders_detected": 67,
+      "detection_rate": 0.9710144927536232,
+      "median_days_to_first_alert": 0.0,
+      "share_detected_within_7_days": 0.927536231884058,
+      "insiders_alerted_before_window": 43,
+      "benign_users_alerted": 7,
+      "benign_alert_days_per_user": 3.4
+    },
+    "gru/v2": {
+      "threshold": -0.2190154504776199,
+      "by_scenario": {
+        "1": [
+          28,
+          29
+        ],
+        "2": [
+          29,
+          30
+        ],
+        "3": [
+          8,
+          10
+        ]
+      },
+      "quantile": 0.99,
+      "n_insiders": 69,
+      "n_benign": 30,
+      "insiders_detected": 65,
+      "detection_rate": 0.9420289855072463,
+      "median_days_to_first_alert": 0.0,
+      "share_detected_within_7_days": 0.8840579710144928,
+      "insiders_alerted_before_window": 47,
+      "benign_users_alerted": 4,
+      "benign_alert_days_per_user": 3.4
+    },
+    "gru/email_only": {
+      "threshold": 1.7517400971055013,
+      "by_scenario": {
+        "1": [
+          0,
+          29
+        ],
+        "2": [
+          29,
+          30
+        ],
+        "3": [
+          1,
+          10
+        ]
+      },
+      "quantile": 0.99,
+      "n_insiders": 69,
+      "n_benign": 30,
+      "insiders_detected": 30,
+      "detection_rate": 0.43478260869565216,
+      "median_days_to_first_alert": 10.0,
+      "share_detected_within_7_days": 0.08695652173913043,
+      "insiders_alerted_before_window": 25,
+      "benign_users_alerted": 10,
+      "benign_alert_days_per_user": 3.4
+    }
+  }
+}
