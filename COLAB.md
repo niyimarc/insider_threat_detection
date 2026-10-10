@@ -290,6 +290,16 @@ Not a clean test (the locked users are spent); the frozen v1 locked result stays
 
 Quick pass: `--models gradient_boosting --n-repeats 1 --tag quick`. Output: `results/supervised/email_signal_cv_<tag>.md/.json` (v1 vs v2 vs email-only, paired differences, alert simulation by scenario, calendar and clock controls). Copy to Drive or commit before the session ends.
 
+## 3g. v3: LDAP peer baselines, GRU+GB ensemble, persistent alert rules (all 99 users, cross-validated)
+
+Needs `email_user_day.parquet` (section 3f) and the raw `data/raw/r4.2/LDAP/` folder (the 18 monthly csv files) next to `logon.csv`. Not a clean test; the frozen v1 locked result stays the clean evidence.
+
+```
+!python scripts/supervised/evaluate_v3_detector.py
+```
+
+Quick pass: `--models gradient_boosting --n-repeats 1 --tag quick` (no ensemble then). Output: `results/supervised/v3_detector_cv_<tag>.md/.json` (v1, v1+peer, v2, v3 for gradient boosting, GRU and their ensemble; alert rules `single` and `persist_2of3` at the 99th and 95th percentile, with cutoffs cross-fitted across users). Copy to Drive or commit before the session ends.
+
 ## 4. When Colab disconnects
 
 Disconnects happen (idle timeout, browser closed, usage limits). What survives and what does not:

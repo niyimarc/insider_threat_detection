@@ -194,23 +194,32 @@ def windows_from_labels(users, days, window_label):
     return {u: (row["min"], row["max"]) for u, row in grouped.iterrows()}
 
 
-def alert_analysis(users, days, scores, windows, quantile=ALERT_QUANTILE, threshold=None):
+def alert_analysis(users, days, scores, windows, quantile=ALERT_QUANTILE, threshold=None, alert_flags=None):
     """
     The alert simulation (see the module docstring). `windows` = windows_from_labels(...);
     users with no window are benign. By default the cutoff is the `quantile` quantile of the
     benign users' day scores in THIS data; pass `threshold` to use a cutoff that was fixed
     elsewhere (the frozen detector sets it on development data and applies it unchanged).
+    `alert_flags` (one boolean per row) replaces the cutoff rule altogether, for alert rules
+    decided elsewhere (src/supervised/alert_rules.py); the reported threshold is then NaN.
     Returns {"threshold", "summary": {...}, "per_user": {user: {...}}}.
     """
     frame = pd.DataFrame({"user": np.asarray(users), "day": pd.to_datetime(np.asarray(days)),
                           "score": np.asarray(scores, dtype=float)})
     benign_mask = ~frame["user"].isin(windows)
-    if threshold is None:
-        if not benign_mask.any():
-            raise ValueError("Need benign users to set the alert cutoff.")
-        threshold = float(np.quantile(frame.loc[benign_mask, "score"].to_numpy(), quantile))
-    threshold = float(threshold)
-    frame["alert"] = frame["score"] >= threshold
+    if alert_flags is not None:
+        flags = np.asarray(alert_flags, dtype=bool)
+        if len(flags) != len(frame):
+            raise ValueError("alert_flags must have one entry per row.")
+        threshold = float("nan")
+        frame["alert"] = flags
+    else:
+        if threshold is None:
+            if not benign_mask.any():
+                raise ValueError("Need benign users to set the alert cutoff.")
+            threshold = float(np.quantile(frame.loc[benign_mask, "score"].to_numpy(), quantile))
+        threshold = float(threshold)
+        frame["alert"] = frame["score"] >= threshold
 
     per_user = {}
     for user, rows in frame.groupby("user"):

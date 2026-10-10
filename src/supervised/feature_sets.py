@@ -106,6 +106,18 @@ def all_days_plus_email_columns():
     return all_days_feature_columns(("file", "device", "logon", "http")) + list(EMAIL_DAY_COLUMNS)
 
 
+def all_days_plus_peer_columns():
+    """The frozen v1 input columns followed by the LDAP peer-baseline columns (v1 + peers)."""
+    from src.supervised.peer_signals import PEER_COLUMNS
+    return all_days_feature_columns(("file", "device", "logon", "http")) + list(PEER_COLUMNS)
+
+
+def all_days_plus_email_peer_columns():
+    """v1 columns, then the email columns, then the peer columns (v3 of the detector)."""
+    from src.supervised.peer_signals import PEER_COLUMNS
+    return all_days_plus_email_columns() + list(PEER_COLUMNS)
+
+
 def all_days_group_of_column(column):
     for group, columns in ALL_DAYS_COLUMNS_BY_GROUP.items():
         if column in columns:
