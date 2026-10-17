@@ -1,35 +1,12 @@
 # Running the project on Google Colab
 
-## Colab basics (read first)
+Three things to know:
 
-- A line starting with `!` runs as a shell command: `!git pull`. Without the `!`, Colab treats it as Python and raises `SyntaxError`.
-- `%cd /some/folder` changes the working directory for later cells. `!cd` does not persist between cells.
-- Each cell must be run with the play button (or Shift+Enter), in order.
-- Everything in `/content` is **wiped when the runtime disconnects**. Only Google Drive survives. Keep data, processed files and checkpoints on Drive.
+- A line starting with `!` is a shell command (`!git pull`). Without the `!`, Colab treats it as Python and raises `SyntaxError`.
+- `%cd` changes the folder for later cells; `!cd` does not.
+- `/content` is wiped when the runtime disconnects. Only Google Drive (`/content/drive/MyDrive/insider_threat/`) survives, so raw data, processed files, checkpoints and `results/` live there. The GitHub token lives in Colab Secrets as `GITHUB_TOKEN`; never paste it into a cell or into chat.
 
-## Where things live
-
-| What | Where |
-|---|---|
-| Code | GitHub (private repo), cloned into `/content/project` each session |
-| Raw data, processed parquet, checkpoints | Google Drive: `/content/drive/MyDrive/insider_threat/` |
-| GitHub token | Colab Secrets, name `GITHUB_TOKEN`, notebook access ON |
-
-Never paste the token into a cell or into chat. If it is ever exposed, revoke it on GitHub and create a new one.
-
-## 0. Choose the GPU (before anything else)
-
-Runtime -> Change runtime type -> **T4 GPU** -> Save. Then run:
-
-```
-!nvidia-smi
-```
-
-If it prints a GPU table, you are good. If it says `command not found`, there is no GPU: Runtime -> Disconnect and delete runtime, reselect T4, and check again. Training on CPU works but is far slower.
-
-## Quick setup: ONE cell for every new session
-
-Colab runtimes are temporary and get recycled (idle timeout, time limit, closing the browser). Data on Drive is never lost, so recovery is just this cell. It is safe to run at any time: it mounts Drive, clones the code (or pulls if it is already there), installs requirements, and re-links the Drive folders.
+## A. New or expired session (run first)
 
 ```python
 from google.colab import drive, userdata
@@ -55,61 +32,7 @@ D = "/content/drive/MyDrive/insider_threat"
 !ls data/raw data/processed checkpoints results
 ```
 
-Then check the GPU (`!nvidia-smi`) and run whatever step you need. The expected `ls` output: `raw/` holds `r4.2` and `answers`, `processed/` holds the parquet files, `checkpoints/` holds the model files. If `r4.2` is missing, do the one-off raw-data download in section 1.
-
-What cannot be made permanent: a running job. If the runtime is recycled mid-run, that run is lost and restarts from the beginning (training and the http precompute have no resume).
-
-## 1. Full setup, step by step (same thing as the quick setup, in separate cells)
-
-Run these cells in order.
-
-**Cell 1 - mount Drive** (tick every box in the popup; allow popups)
-
-```python
-from google.colab import drive
-drive.mount('/content/drive')
-```
-
-**Cell 2 - clone the code**
-
-```python
-from google.colab import userdata
-token = userdata.get('GITHUB_TOKEN')
-!git clone https://{token}@github.com/niyimarc/insider_threat_detection.git /content/project
-```
-
-**Cell 3 - install requirements**
-
-```
-%cd /content/project
-!pip install -q -r requirements.txt
-```
-
-**Cell 4 - link the Drive folders into the project** (so nothing is copied and results persist)
-
-```
-!mkdir -p /content/project/data
-!rm -rf /content/project/checkpoints
-!ln -sfn /content/drive/MyDrive/insider_threat/raw /content/project/data/raw
-!ln -sfn /content/drive/MyDrive/insider_threat/processed /content/project/data/processed
-!ln -sfn /content/drive/MyDrive/insider_threat/checkpoints /content/project/checkpoints
-!mkdir -p /content/drive/MyDrive/insider_threat/results
-!if [ ! -L /content/project/results ]; then rm -rf /content/project/results; fi
-!ln -sfn /content/drive/MyDrive/insider_threat/results /content/project/results
-```
-
-Drive layout this expects (`/content/drive/MyDrive/insider_threat/`):
-
-```
-raw/r4.2/{logon,device,http,email,file}.csv  (+ psychometric.csv, LDAP/)
-raw/answers/                                   (insiders.csv, r4.2-1/ ...)
-processed/file_events_processed.parquet
-processed/http_domain_daily.parquet, http_hour_daily.parquet
-checkpoints/
-results/unsupervised/                          (final_evaluation_*.json / .md tables)
-```
-
-**One-off: download the raw data to Drive** (only if `raw/r4.2` is missing; about 4.8 GB download, 10-25 min to extract, keep the tab open)
+Expected: `data/raw` has `r4.2` and `answers`; `data/processed` has the parquet files. If `r4.2` is missing, download it once:
 
 ```
 %%bash
@@ -119,226 +42,95 @@ wget -q --show-progress -O r4.2.tar.bz2 https://ndownloader.figshare.com/files/2
 echo "cf64caa378acb77cd0c608a5576d998c  r4.2.tar.bz2" | md5sum -c
 tar -xjf r4.2.tar.bz2 -C /content/drive/MyDrive/insider_threat/raw
 rm r4.2.tar.bz2
-ls -la /content/drive/MyDrive/insider_threat/raw/r4.2
 ```
 
-**Cell 5 - check it worked**
-
-```
-!ls /content/project/data/raw /content/project/data/processed /content/project/checkpoints
-!git -C /content/project log --oneline -1
-```
-
-## 2. Updating code after you push to GitHub
-
-If the session is still alive (`/content/project` exists):
+## B. After pushing new code (session still running)
 
 ```
 %cd /content/project
 !git pull
 ```
 
-If `git pull` says `not a git repository` or `/content/project` does not exist, the session was reset: do the full setup in section 1.
+If it says `not a git repository`, the session was reset: run section A.
 
-If the clone says `destination path already exists`, the folder is already there: use `%cd /content/project` and `!git pull` instead.
+## C. Running the project
 
-## 3. Running the pipeline
+Always from `/content/project`. Run only the steps you need, in this order. All steps run on the CPU except step 5.
 
-Always from the project root (`%cd /content/project`).
-
-```
-!python scripts/common/precompute_http_daily.py     # once; long (reads the 14 GB http.csv); build_dataset needs its output
-!python scripts/common/build_dataset.py             # after any feature change
-!python scripts/unsupervised/train_models.py              # prints "Training device: cuda" on GPU
-!python scripts/unsupervised/evaluate_models.py           # dev partition by default
-```
-
-Named runs (use these for ablations and multiple seeds, so runs never overwrite each other). Train and evaluate must get the SAME `INSIDER_CHECKPOINT_DIR`. `INSIDER_REQUIRE_GPU=1` makes training stop immediately if the runtime has no GPU (a reset runtime goes back to CPU, and a CPU run takes many hours):
+**1. Prepare the data (once; repeat `build_dataset` after any feature change)**
 
 ```
-# all signal groups, seed 1
-!INSIDER_REQUIRE_GPU=1 INSIDER_CHECKPOINT_DIR=checkpoints/all_seed1 INSIDER_SEED=1 python scripts/unsupervised/train_models.py
-!INSIDER_CHECKPOINT_DIR=checkpoints/all_seed1 python scripts/unsupervised/evaluate_models.py
-
-# ablation: without http, seed 1
-!INSIDER_FEATURE_GROUPS=file,device,logon INSIDER_CHECKPOINT_DIR=checkpoints/nohttp_seed1 INSIDER_SEED=1 python scripts/unsupervised/train_models.py
-!INSIDER_FEATURE_GROUPS=file,device,logon INSIDER_CHECKPOINT_DIR=checkpoints/nohttp_seed1 python scripts/unsupervised/evaluate_models.py
+!python scripts/common/precompute_http_daily.py     # long: reads the 14 GB http.csv
+!python scripts/common/precompute_email_daily.py
+!python scripts/common/build_dataset.py
 ```
 
-Each folder gets `feature_config.json` and `run_metadata.json` (seed, versions, git commit). Evaluating with a different feature selection than the run was trained with stops with a clear error.
-
-**Models** are declared once in `src/unsupervised/models/registry.py` (the two autoencoders, the Isolation Forest, and two heuristic baselines that need no training: the single http feature and session length). Training, evaluation and the ensemble loop over that list. `INSIDER_MODELS=lstm_ae,static_iforest` restricts any script to a subset.
-
-**The results table** (`scripts/unsupervised/final_evaluation.py`): AUROC/AUPRC averaged over the seeds you pass, with 95% user-level bootstrap intervals, a paired comparison against the single-feature baseline, and BOTH labelings (window and answer-key) side by side. It writes `results/unsupervised/final_evaluation_<partition>_<tag>.json` and `.md`.
+**2. Development experiments (50 development users, cross-validated)**
 
 ```
-# development partition (the default), three seeds of the same configuration
-!python scripts/unsupervised/final_evaluation.py --runs checkpoints/all_seed1 checkpoints/all_seed2 checkpoints/all_seed3 --tag all
-
-# the same for an ablation (the INSIDER_FEATURE_GROUPS value must match how those runs were trained)
-!INSIDER_FEATURE_GROUPS=file,device,logon python scripts/unsupervised/final_evaluation.py --runs checkpoints/nohttp_seed1 checkpoints/nohttp_seed2 --tag nohttp
-```
-
-The LOCKED partition is for one final evaluation of a method fixed in advance, and needs `--partition locked --confirm-final`. Whatever it shows is what gets reported. Run it only once the method, feature set and seeds are frozen.
-
-Diagnostics and ablations:
-
-```
-!python scripts/unsupervised/diagnose_scenario2_dilution.py
-!python scripts/unsupervised/ensemble_scores.py
-!INSIDER_FEATURE_GROUPS=file,device python scripts/unsupervised/train_models.py   # example ablation
-```
-
-The **locked** test partition is for the single final evaluation only:
-
-```
-!INSIDER_TEST_PARTITION=locked python scripts/unsupervised/evaluate_models.py
-```
-
-Do not use it while designing features or tuning.
-
-Rebuilding the dataset (`build_dataset.py`) makes existing checkpoints stale. Retrain afterwards.
-
-## 3b. Supervised user-day detection (no GPU needed)
-
-Trains logistic regression and gradient boosting on user-day features with the WINDOW label, cross-validated over USERS (stratified by scenario), on the development partition only. It needs the processed dataset (`build_dataset.py`) and nothing else, runs on the CPU in a few minutes, and writes `results/supervised/supervised_cv_dev_<tag>.json` and `.md`.
-
-```
-!python scripts/supervised/cross_validate.py
-# a quicker check of two configurations:
-!python scripts/supervised/cross_validate.py --models gradient_boosting --configs file all --tag quick
-```
-
-It reports four signal-group configurations (file; +device; +logon; +http), both labellings (window = training label; answer key = evaluation only), two no-training heuristics, and the http signal's paired contribution. There is deliberately no locked-partition option yet.
-
-It ends with a DATE-MATCHED EVALUATION, which is the number to quote: the date-stratified AUROC compares each malicious day only with non-malicious days from the same calendar week (so knowing the date cannot help), reported for normally trained models and for models retrained with date-matched weights. The calendar-only control must land near 0.5 there; if it does not, the correction is not working. `--strata-days` changes the stratum width (default 7).
-
-The last section is the DECISIVE CHECK: insiders only, date-stratified. Only insiders' days are scored, each malicious day against other insiders' non-malicious days from the same week, so neither the date nor "insiders differ from benign users" can explain a score; the third table also trains on insiders only. A model clearly above 0.5 there, with the calendar-only control near chance, is separating behaviour inside the window from behaviour outside it. If a week range has no insiders on both sides of their window, the section says so instead of reporting a number.
-
-It also runs three CONFOUND CHECKS, to be read before any of the scores: a calendar-only control (the same models given only the date; a high score means the window labels can be recovered from when a day happened, not from behaviour), a within-insider comparison (insiders' window days vs the same insiders' other days, paired against that control), and permutation importance by signal group.
-
-## 3c. Supervised detection on ALL user-days (device and logon signals)
-
-The table above only had days with a file copy. This version has a row for EVERY day the user was active in the logon, device or file log, and adds day-level device and logon signals (connects per day, after-hours events, distinct PCs, first-ever drive use, and deviations from the user's own previous days; see `src/supervised/day_signals.py`). The feature list was fixed in advance from the dataset's readme and `scenarios.txt`, not from results. It needs the raw `logon.csv` and `device.csv` on Drive as well as the processed dataset, and it runs on the CPU. The table is about five times larger than before, so expect a long run; a quick first pass:
-
-```
-!python scripts/supervised/cross_validate_all_days.py --models gradient_boosting --n-repeats 1 --n-boot 200 --tag quick
-```
-
-and the full run (all models, 3 repeats, 500 resamples):
-
-```
-!python scripts/supervised/cross_validate_all_days.py
-```
-
-Every run also reports a second control, "per-user clock only" (days since the user's first activity and the user's day count). Date stratification removes the shared calendar but not this per-user clock, so in the insiders-only tables it should land near 0.5 (check the date-matched and insiders-only rows).
-
-Sequence model (a one-layer GRU over each user's previous 14 active days, fixed hyperparameters, same evaluation and controls; CPU is enough, the first pass takes roughly half an hour):
-
-```
-!python scripts/supervised/cross_validate_all_days.py --models gru --n-repeats 1 --tag gru
-```
-
-Every run's last section is "Detection by time since the window started": the insiders-only, date-matched result split by days since the start of the insider's window (0-6, 7-27, 28+). Read the first bin: it shows whether a model flags the START of the window or only recognises a sustained change deep inside it.
-
-Head-to-head against gradient boosting (both models in one run, every "minus ..." column paired against gradient boosting with all signals):
-
-```
-!python scripts/supervised/cross_validate_all_days.py --models gradient_boosting gru --reference "gradient_boosting[all]" --tag h2h
-```
-
-(3 repeats by default; expect one to two hours on CPU. Add `--n-repeats 1` for a faster pass.) The GRU run skips the permutation-importance sections (a window input has no single column per feature).
-
-Ablation (remove input columns and rerun, e.g. the cumulative device-use counter):
-
-```
-!python scripts/supervised/cross_validate_all_days.py --exclude-features dv_prior_use_days --tag no_prior_use
-```
-
-It writes `results/supervised/supervised_all_days_dev_<tag>.json` and `.md` with the same sections as 3b, plus "Permutation importance by individual feature" (top 15 columns, showing which device/logon feature carries the group-level result). Read the last section (insiders only, date-stratified) first. Dev only: there is deliberately no locked-partition option.
-
-## 3d. The insider detector: from suspicious days to suspicious people (dev users)
-
-Scores every user-day out-of-fold, then reports per PERSON: do insiders rank above benign users (user-level AUROC, with date and per-user-clock controls), how many of the top-ranked users are insiders, and an alert simulation (cutoff = 99th percentile of benign users' day scores): insiders detected, days to first alert, benign users alerted. It also writes a ranked user list (CSV) with each user's most suspicious days.
-
-```
+!python scripts/supervised/cross_validate_all_days.py --models gradient_boosting gru --tag dev
 !python scripts/supervised/detect_insiders.py --models gradient_boosting gru --tag dev
 ```
 
-The report also has a "Matched-period check": each insider's score over their own window against every benign user's score over the SAME calendar dates (a date-only score gives exactly 0.5), the strictest person-level comparison.
+Add `--n-repeats 1` to either for a faster check.
 
-Quick pass (gradient boosting only): `--models gradient_boosting --n-repeats 1 --tag quick`. Outputs: `results/supervised/detector_dev_<tag>.md/.json` and `detector_users_<tag>_<model>_<training>.csv`. Dev only: there is no locked-partition option.
-
-## 3e. THE FINAL, ONCE-ONLY test on the locked users
-
-Method fixed in `FROZEN_SUPERVISED_METHOD.md` (do not edit it after this run). Trains the two frozen models (gradient boosting, GRU; all signals; date-matched) on the 50 development users only and scores the locked users. Run it ONCE; whatever comes out is what gets reported.
+**3. Final test on the locked users (once only; the method is fixed in `FROZEN_SUPERVISED_METHOD.md`, do not edit it)**
 
 ```
 !python scripts/supervised/final_detector_locked.py --confirm-final
 ```
 
-Outputs in `results/supervised/`: `final_detector_locked_locked.md/.json`, `final_detector_users_locked_<model>.csv` and `LOCKED_RUN_RECORD.json` (a second run is refused without `--allow-second-run`). Copy these to Drive or commit them: the Colab folder disappears with the session.
+**4. False alarms on the 165 further benign users**
 
-## 3f. Email signal (v2 = v1 + email), all 99 users, cross-validated
-
-Not a clean test (the locked users are spent); the frozen v1 locked result stays the clean evidence. Two steps; the first needs the raw `email.csv` on Drive and is run once:
-
-```
-!python scripts/common/precompute_email_daily.py
-!python scripts/supervised/evaluate_email_signal.py
-```
-
-Quick pass: `--models gradient_boosting --n-repeats 1 --tag quick`. Output: `results/supervised/email_signal_cv_<tag>.md/.json` (v1 vs v2 vs email-only, paired differences, alert simulation by scenario, calendar and clock controls). Copy to Drive or commit before the session ends.
-
-## 3g. v3: LDAP peer baselines, GRU+GB ensemble, persistent alert rules (all 99 users, cross-validated)
-
-Needs `email_user_day.parquet` (section 3f) and the raw `data/raw/r4.2/LDAP/` folder (the 18 monthly csv files) next to `logon.csv`. Not a clean test; the frozen v1 locked result stays the clean evidence.
-
-```
-!python scripts/supervised/evaluate_v3_detector.py
-```
-
-Quick pass: `--models gradient_boosting --n-repeats 1 --tag quick` (no ensemble then). Output: `results/supervised/v3_detector_cv_<tag>.md/.json` (v1, v1+peer, v2, v3 for gradient boosting, GRU and their ensemble; alert rules `single` and `persist_2of3` at the 99th and 95th percentile, with cutoffs cross-fitted across users). Copy to Drive or commit before the session ends.
-
-## 3h. Clean extra test: frozen detector's false alarms on ~165 benign users never scored
-
-The frozen v1 detector (trained on the 50 development users, saved frozen alert cutoff) scores benign users that belonged to the unsupervised phase's train/validation sets and were never used by the supervised work. The locked users' events are not read or scored again; the saved locked-run CSVs and `final_detector_locked_locked.json` must be in `results/supervised/` (copy them from Drive or clone them from GitHub).
+Needs the locked-run files in `results/supervised/` (`final_detector_locked_locked.json` and the two `final_detector_users_locked_*.csv`). Check with `!ls results/supervised`; if they are missing, upload them from the repository's `results/supervised/` folder on your PC to Drive (`insider_threat/results/supervised/`).
 
 ```
 !python scripts/supervised/extra_benign_false_alarms.py
 ```
 
-Output: `results/supervised/extra_benign_false_alarms_extra_benign.md/.json` and `extra_benign_users_extra_benign_<model>.csv` (use `git add -f` for the CSVs). Copy to Drive or commit before the session ends.
+**5. Extensions (all 99 users, cross-validated; not clean evidence)**
 
-## 4. When Colab disconnects
+```
+!python scripts/supervised/evaluate_email_signal.py
+!python scripts/supervised/evaluate_v3_detector.py
+```
 
-Disconnects happen (idle timeout, browser closed, usage limits). What survives and what does not:
+**6. Preliminary unsupervised models (optional; needs a GPU: Runtime -> Change runtime type -> T4)**
 
-- Survives: everything on Drive (raw data, processed parquet, checkpoints written there).
-- Lost: the cloned code, installed packages, any run in progress, and anything in `/content`.
+```
+!python scripts/unsupervised/train_models.py
+!python scripts/unsupervised/evaluate_models.py
+```
 
-To recover:
+## D. Where the results go
 
-1. Reconnect (Runtime -> Connect), re-check the GPU (`!nvidia-smi`).
-2. Run the full setup, section 1.
-3. Re-run whichever step was interrupted. Training and the http precompute have **no resume**, so an interrupted run starts again from its beginning.
+Every script writes to `results/` on Drive (`results/supervised/`, `results/unsupervised/`), so they survive a disconnect. To keep them in the repository: download them from Drive into the same folder on your PC, then
 
-Tips to reduce disconnects:
+```
+git add -f results/supervised/<file>
+git commit -m "Add <what>"
+git push
+```
 
-- Keep the browser tab open while a long job runs.
-- Run long jobs with the runtime idle timeout in mind; do not start a multi-hour job right before leaving unless you can check on it.
-- Long jobs write their outputs to Drive at the end, so check the files exist (`!ls -la /content/project/checkpoints`) before assuming a run finished.
+`-f` is needed because `results/` is ignored by git.
 
-## 5. Common errors
+| Step | Main output files |
+|---|---|
+| 2 | `supervised_all_days_dev_<tag>.md/.json`, `detector_dev_<tag>.md/.json`, `detector_users_*.csv` |
+| 3 | `final_detector_locked_locked.md/.json`, `final_detector_users_locked_<model>.csv`, `LOCKED_RUN_RECORD.json` |
+| 4 | `extra_benign_false_alarms_extra_benign.md/.json`, `extra_benign_users_extra_benign_<model>.csv` |
+| 5 | `email_signal_cv_all.md/.json`, `v3_detector_cv_all.md/.json` |
+
+## E. If something goes wrong
+
+A running job is lost if the runtime is recycled; rerun section A, then the step. Training and the http precompute have no resume.
 
 | Error | Fix |
 |---|---|
-| `SyntaxError` on `git pull` / `ls` / `python ...` | Add `!` at the start of the line |
-| `credential propagation was unsuccessful` | Tick all boxes in the auth popup, allow popups, or use the Files sidebar -> Mount Drive button |
-| `SecretNotFoundError` | Create the `GITHUB_TOKEN` secret and enable Notebook access for it |
-| `could not read Username` | Use the `https://{token}@github.com/...` clone URL (Cell 2) |
-| `not a git repository` / `/content/project` missing | Session reset: run section 1 again |
-| `destination path already exists` | `%cd /content/project` then `!git pull` |
-| `nvidia-smi: command not found` | No GPU: disconnect and delete runtime, reselect T4 |
-| `size mismatch` loading a checkpoint | Checkpoints are from an older feature set or model size: retrain |
-| `no 'test_partition' column` | Dataset predates the dev/locked split: run `build_dataset.py` |
+| `SyntaxError` on `git`, `ls` or `python` | Add `!` at the start of the line |
+| `not a git repository` or `/content/project` missing | Session reset: run section A |
+| `SecretNotFoundError` | Create the `GITHUB_TOKEN` secret and turn on Notebook access |
+| `credential propagation was unsuccessful` | Tick all boxes in the Drive popup, or use Files sidebar -> Mount Drive |
+| `no 'test_partition' column` | Run `build_dataset.py` |
+| `size mismatch` loading a checkpoint | Checkpoints are from an older feature set: retrain |
+| `refusing to run` on the locked step | The locked test was already run; this is intended (see `LOCKED_RUN_RECORD.json`) |
